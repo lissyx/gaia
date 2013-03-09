@@ -80,7 +80,10 @@ var Commands = {
 
   predict: function predict(prefix) {
     try {
+      var start = new Date().getTime();
       var words = Predictions.predict(prefix);
+      var elapsed = new Date().getTime() - start;
+      dump("predict: " + prefix + ", " + elapsed + " ms\n");
       postMessage({ cmd: 'predictions', args: words });
     }
     catch (e) {
