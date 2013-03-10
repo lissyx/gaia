@@ -267,32 +267,23 @@ var Predictions = (function() {
       if (cChild != 0) {
         var cChar = String.fromCharCode(_dict[offset + cChild]);
         var lCandidates = candidates.length;
-        do {
-          findPredictionsDFS(offset + cChild, match + cChar, candidates, edits, multiplier, lookAhead);
-          lookAhead *= 2;
-        } while (candidates.length == lCandidates);
+        findPredictionsDFS(offset + cChild, match + cChar, candidates, edits, multiplier, lookAhead);
       }
 
       if (lChild != 0) {
         var lChar = String.fromCharCode(_dict[offset + lChild]);
         var lCandidates = candidates.length;
-        do {
-          findPredictionsDFS(offset + lChild,
+        findPredictionsDFS(offset + lChild,
                            match.substring(0, matchLength - 1) + lChar,
                            candidates, edits, multiplier, lookAhead);
-          lookAhead *= 2;
-        } while (candidates.length == lCandidates);
       }
 
       if (rChild != 0) {
         var rChar = String.fromCharCode(_dict[offset + rChild]);
         var lCandidates = candidates.length;
-        do {
-          findPredictionsDFS(offset + rChild,
+        findPredictionsDFS(offset + rChild,
                            match.substring(0, matchLength - 1) + rChar,
                            candidates, edits, multiplier, lookAhead);
-          lookAhead *= 2;
-        } while (candidates.length == lCandidates);
       }
     }
 
@@ -303,7 +294,7 @@ var Predictions = (function() {
       // to make room for adding one character
       prefix.move(matchLength, prefix.length - matchLength - 1, matchLength + 1);
       for (var nkey in _nearbyKeys) {
-        prefix[matchLength] = nkey.charCodeAt(0);
+        prefix[matchLength] = nkey;
         predict(offset, prefix, prefixLen + 1, match, suggestions, edits, AdditionMultiplier);
       }
       // move the memory back where it was
@@ -324,7 +315,7 @@ var Predictions = (function() {
     // surrounding characters (editdistance 1)
     function surroundingChars(offset, prefix, prefixLen, match, edits, suggestions) {
       var matchLength = match.length;
-      var nearbyKeys = _nearbyKeys[String.fromCharCode(prefix[matchLength])];
+      var nearbyKeys = _nearbyKeys[prefix[matchLength]];
       if (typeof(nearbyKeys) === 'undefined')
         return;
       var original = prefix[matchLength];
@@ -343,7 +334,7 @@ var Predictions = (function() {
     // alternative characters (diacritics)
     function alternativeChars(offset, prefix, prefixLen, match, edits, suggestions) {
       var matchLength = match.length;
-      var altKeys = _altKeys[String.fromCharCode(prefix[matchLength])];
+      var altKeys = _altKeys[prefix[matchLength]];
        if (typeof(altKeys) === 'undefined')
         return;
       var original = prefix[matchLength];
@@ -520,7 +511,6 @@ var Predictions = (function() {
     // Sort the candidates by Levenshtein distance and rank.
     for (var n = 0, len = candidates.length; n < len; ++n) {
       var candidate = candidates[n];
-
       // Skip candidates equal to input and shorter candidates
       if (candidate.word == lowerCaseWord ||
           candidate.word.length < lowerCaseWord.length) {
@@ -539,48 +529,17 @@ var Predictions = (function() {
   }
 
   function setLayout(params) {
-    // Fill the diacritics array
-    var diacritics = {
-      'a': 'ÁáĂăǍǎÂâÄäȦȧẠạȀȁÀàẢảȂȃĀāĄąÅåḀḁȺⱥÃãǼǽǢǣÆæ',
-      'b': 'ḂḃḄḅƁɓḆḇɃƀƂƃ',
-      'c': 'ĆćČčÇçĈĉĊċƇƈȻȼ',
-      'd': 'ĎďḐḑḒḓḊḋḌḍƊɗḎḏĐđƋƌð',
-      'e': 'ÉéĔĕĚěȨȩÊêḘḙËëĖėẸẹȄȅÈèẺẻȆȇĒēĘę',
-      'f': 'ḞḟƑƒ',
-      'g': 'ǴǵĞğǦǧĢģĜĝĠġƓɠḠḡǤǥ',
-      'h': 'ḪḫȞȟḨḩĤĥⱧⱨḦḧḢḣḤḥĦħ',
-      'i': 'ÍíĬĭǏǐÎîÏïỊịȈȉÌìỈỉȊȋĪīĮįƗɨĨĩḬḭı',
-      'j': 'ĴĵɈɉ',
-      'k': 'ḰḱǨǩĶķⱩⱪꝂꝃḲḳƘƙḴḵꝀꝁ',
-      'l': 'ĹĺȽƚĽľĻļḼḽḶḷⱠⱡꝈꝉḺḻĿŀⱢɫŁł',
-      'm': 'ḾḿṀṁṂṃⱮɱ',
-      'n': 'ŃńŇňŅņṊṋṄṅṆṇǸǹƝɲṈṉȠƞÑñ',
-      'o': 'ÓóŎŏǑǒÔôÖöȮȯỌọŐőȌȍÒòỎỏƠơȎȏꝊꝋꝌꝍŌōǪǫØøÕõŒœ',
-      'p': 'ṔṕṖṗꝒꝓƤƥⱣᵽꝐꝑ',
-      'q': 'Ꝗꝗ',
-      'r': 'ŔŕŘřŖŗṘṙṚṛȐȑȒȓṞṟɌɍⱤɽ',
-      's': 'ŚśŠšŞşŜŝȘșṠṡṢṣß$',
-      't': 'ŤťŢţṰṱȚțȾⱦṪṫṬṭƬƭṮṯƮʈŦŧ',
-      'u': 'ÚúŬŭǓǔÛûṶṷÜüṲṳỤụŰűȔȕÙùỦủƯưȖȗŪūŲųŮůŨũṴṵ',
-      'v': 'ṾṿƲʋṼṽ',
-      'w': 'ẂẃŴŵẄẅẆẇẈẉẀẁⱲⱳ',
-      'x': 'ẌẍẊẋ',
-      'y': 'ÝýŶŷŸÿẎẏỴỵỲỳƳƴỶỷỾỿȲȳɎɏỸỹ',
-      'z': 'ŹźŽžẐẑⱫⱬŻżẒẓȤȥẔẕƵƶ'
-    };
-
     // Set all alternative keys (diacritics) for that key
     // separate upper and lower case values
     _altKeys = {};
+    var diacritics = params.alternativeKeys;
     for (var key in diacritics) {
       if (SpecialKey(key))
         continue;
-      _altKeys[key] = diacritics[key];
-      dump("key: "+key+" alt: ");
-      for (var k=0; k< _altKeys[key].length; k++) dump(_altKeys[key][k].charCodeAt(0)+" ");
-      dump("\n");
-      if (_altKeys[key.toUpperCase()] === undefined) {
-        _altKeys[key.toUpperCase()] = diacritics[key].toUpperCase();
+      _altKeys[key.charCodeAt(0)] = diacritics[key];
+      //for (var k=0; k< _altKeys[key].length; k++) dump(_altKeys[key][k]+" ");
+      if (_altKeys[key.toUpperCase().charCodeAt(0)] === undefined) {
+        _altKeys[key.toUpperCase().charCodeAt(0)] = diacritics[key].toUpperCase();
       }
     }
     
@@ -627,7 +586,7 @@ var Predictions = (function() {
           list += String.fromCharCode(key2.code).toLowerCase();
         }
       }
-      _nearbyKeys[String.fromCharCode(key1.code).toLowerCase()] = list;
+      _nearbyKeys[String.fromCharCode(key1.code).toLowerCase().charCodeAt(0)] = list;
     }
   }
 
