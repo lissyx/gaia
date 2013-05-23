@@ -26,6 +26,27 @@ function thui_mmsAttachmentClick(target) {
   };
 }
 
+// reduce the Composer.getContent() into slide format used by SMIL.generate some
+// day in the future, we should make the SMIL and Compose use the same format
+function thui_generateSmilSlides(slides, content) {
+  var length = slides.length;
+  if (typeof content === 'string') {
+    if (!length || slides[length - 1].text) {
+      slides.push({
+        text: content
+      });
+    } else {
+      slides[length - 1].text = content;
+    }
+  } else {
+    slides.push({
+      blob: content.blob,
+      name: content.name
+    });
+  }
+  return slides;
+}
+
 var ThreadUI = global.ThreadUI = {
   // Time buffer for the 'last-messages' set. In this case 10 min
   LAST_MESSSAGES_BUFFERING_TIME: 10 * 60 * 1000,
@@ -40,6 +61,7 @@ var ThreadUI = global.ThreadUI = {
       'recipient'];
 
     Compose.init('messages-compose-form');
+    AttachmentMenu.init('attachment-options-menu');
 
     // Fields with 'messages' label
     [
@@ -95,7 +117,7 @@ var ThreadUI = global.ThreadUI = {
     );
 
     this.sendButton.addEventListener(
-      'click', this.sendMessage.bind(this)
+      'click', this.onSendClick.bind(this)
     );
 
     this.container.addEventListener(
@@ -128,12 +150,10 @@ var ThreadUI = global.ThreadUI = {
      *
      * https://bugzilla.mozilla.org/show_bug.cgi?id=870069
      *
-
+     */
     this.headerText.addEventListener(
       'click', this.activateContact.bind(this)
     );
-
-     */
 
     // When 'focus' we have to remove 'edit-mode' in the recipient
     this.input.addEventListener(
@@ -353,6 +373,7 @@ var ThreadUI = global.ThreadUI = {
         (this.container.scrollHeight - previous) + currentScroll;
     }
   },
+
   setInputMaxHeight: function thui_setInputMaxHeight() {
     // Method for initializing the maximum height
     var fontSize = Utils.getFontSize();
@@ -366,6 +387,7 @@ var ThreadUI = global.ThreadUI = {
     }
     this.input.style.maxHeight = (viewHeight - adjustment) + 'rem';
   },
+
   back: function thui_back() {
     var goBack = (function() {
       this.stopRendering();
@@ -551,6 +573,7 @@ var ThreadUI = global.ThreadUI = {
     this.container.style.bottom = bottomBarHeight;
     this.scrollViewToBottom();
   },
+
   // Adds a new grouping header if necessary (today, tomorrow, ...)
   getMessageContainer:
     function thui_getMessageContainer(messageTimestamp, hidden) {
@@ -630,6 +653,7 @@ var ThreadUI = global.ThreadUI = {
     }
     return messageContainer;
   },
+
   // Method for updating the header with the info retrieved from Contacts API
   updateHeaderData: function thui_updateHeaderData(callback) {
     var thread, number, others;
@@ -648,15 +672,15 @@ var ThreadUI = global.ThreadUI = {
     number = thread.participants[0];
     others = thread.participants.length - 1;
 
-    // For Desktop Testing, mozContacts it's mockuped but it's not working
+    // For Desktop testing, there is a fake mozContacts but it's not working
     // completely. So in the case of Desktop testing we are going to execute
-    // the callback directly in order to make it works!
+    // the callback directly in order to make it work!
     // https://bugzilla.mozilla.org/show_bug.cgi?id=836733
     if (!navigator.mozMobileMessage && callback) {
       this.headerText.textContent = navigator.mozL10n.get(
         'contact-title-text', {
-        name: number,
-        n: others
+          name: number,
+          n: others
       });
       setTimeout(callback);
       return;
@@ -665,10 +689,8 @@ var ThreadUI = global.ThreadUI = {
     // Add data to contact activity interaction
     this.headerText.dataset.phoneNumber = number;
 
-    // For the basic display, only need the first contact's information:
-    //  Example:
-    //
-    //  For 3 contacts, the app displays:
+    // For the basic display, we only need the first contact's information --
+    // e.g. for 3 contacts, the app displays:
     //
     //    Jane Doe (+2)
     //
@@ -681,12 +703,10 @@ var ThreadUI = global.ThreadUI = {
        */
       var details = Utils.getContactDetails(number, contacts);
       var contactName = details.title || number;
-      var plural = others && others > 0 ?
-        (others > 1 ? '[many]' : '[one]') : '[zero]';
 
       this.headerText.dataset.isContact = !!details.isContact;
       this.headerText.textContent = navigator.mozL10n.get(
-        'contact-title-text' + plural, {
+        'contact-title-text', {
           name: contactName,
           n: others
       });
@@ -717,10 +737,12 @@ var ThreadUI = global.ThreadUI = {
     // reset stopRendering boolean
     this._stopRenderingNextStep = false;
   },
+
   // Method for stopping the rendering when clicking back
   stopRendering: function thui_stopRendering() {
     this._stopRenderingNextStep = true;
   },
+
   // Method for rendering the first chunk at the beginning
   showFirstChunk: function thui_showFirstChunk() {
     // Show chunk of messages
@@ -732,8 +754,7 @@ var ThreadUI = global.ThreadUI = {
   },
 
   createMmsContent: function thui_createMmsContent(dataArray) {
-    var container = document.createElement('div');
-    container.className = 'mms-container';
+    var container = document.createDocumentFragment();
     dataArray.forEach(function(attachment) {
       var mediaElement, textElement;
 
@@ -1112,16 +1133,22 @@ var ThreadUI = global.ThreadUI = {
   },
 
   cleanFields: function thui_cleanFields(forceClean) {
-    var self = this;
-    var clean = function clean() {
+    var clean = (function clean() {
       Compose.clear();
-      self.sendButton.dataset.counter = '';
-      self.sendButton.classList.remove('has-counter');
+
+      // Compose.clear might cause a conversion from mms -> sms, we need
+      // to ensure the message is hidden after we clear fields.
+      this.convertNotice.classList.add('hide');
+
+      // reset the counter
+      this.sendButton.dataset.counter = '';
+      this.sendButton.classList.remove('has-counter');
+
       if (window.location.hash === '#new') {
-        self.initRecipients();
-        self.updateComposerHeader();
+        this.initRecipients();
+        this.updateComposerHeader();
       }
-    };
+    }).bind(this);
 
     if (this.previousHash === window.location.hash ||
         this.previousHash === '#new') {
@@ -1135,34 +1162,30 @@ var ThreadUI = global.ThreadUI = {
     this.previousHash = window.location.hash;
   },
 
-  sendMessage: function thui_sendMessage(resendText) {
-    var recipients, text;
+  onSendClick: function thui_onSendClick() {
+    // don't send an empty message
+    if (Compose.isEmpty()) {
+      return;
+    }
 
+    // not sure why this happens - replace me if you know
     this.container.classList.remove('hide');
 
-    if (resendText && typeof resendText === 'string') {
-      recipients = MessageManager.activity.recipients;
-      text = resendText;
-    } else {
-      // Retrieve nums depending on hash
-      var hash = window.location.hash;
-      // Depending where we are, we get different nums
-      if (hash === '#new') {
-        if (!this.recipients.length) {
-          return;
-        }
-        recipients = this.recipients.numbers;
-      } else {
-        recipients = Threads.active.participants;
-      }
+    var content = Compose.getContent();
+    var messageType = Compose.type;
+    var recipients;
 
-      // Retrieve text
-      text = Compose.getText();
-      if (!text) {
+    // Depending where we are, we get different nums
+    if (window.location.hash === '#new') {
+      if (!this.recipients.length) {
         return;
       }
+      recipients = this.recipients.numbers;
+    } else {
+      recipients = Threads.active.participants;
     }
-    // Clean fields (this lock any repeated click in 'send' button)
+
+    // Clean composer fields (this lock any repeated click in 'send' button)
     this.cleanFields(true);
 
     this.updateHeaderData();
@@ -1171,7 +1194,16 @@ var ThreadUI = global.ThreadUI = {
     MessageManager.activity.recipients = recipients;
 
     // Send the Message
-    MessageManager.send(recipients, text);
+    if (messageType === 'sms') {
+      MessageManager.sendSMS(recipients, content[0], function messageSent() {
+        if (recipients.length > 1) {
+          window.location.hash = '#thread-list';
+        }
+      });
+    } else {
+      var smilSlides = content.reduce(thui_generateSmilSlides, []);
+      MessageManager.sendMMS(recipients, smilSlides);
+    }
   },
 
   onMessageSent: function thui_onMessageSent(message) {
@@ -1290,12 +1322,10 @@ var ThreadUI = global.ThreadUI = {
           '[data-message-id="' + id + '"]');
 
         this.removeMessageDOM(messageDOM);
-        // We resend again
-        this.sendMessage(message.body);
+        MessageManager.resendMessage(message);
       }.bind(this));
     }).bind(this);
   },
-
 
   // Returns true when a contact has been rendered
   // Returns false when no contact has been rendered
@@ -1373,6 +1403,7 @@ var ThreadUI = global.ThreadUI = {
       this.container.textContent = '';
     }
   },
+
   toFieldInput: function(event) {
     var typed;
     if (event.target.isPlaceholder) {
@@ -1380,8 +1411,8 @@ var ThreadUI = global.ThreadUI = {
       this.searchContact(typed);
     }
   },
-  searchContact: function thui_searchContact(filterValue) {
 
+  searchContact: function thui_searchContact(filterValue) {
     if (!filterValue) {
       // In cases where searchContact was invoked for "input"
       // that was actually a "delete" that removed the last
@@ -1434,7 +1465,17 @@ var ThreadUI = global.ThreadUI = {
 
   activateContact: function thui_activateContact() {
     var _ = navigator.mozL10n.get;
+    var participants = Threads.active && Threads.active.participants;
     var phoneNumber = this.headerText.dataset.phoneNumber;
+
+    // Do nothing when there are more then one participants
+    // in this thread.
+    // >1 requires the group participants view.
+    // See: https://bugzilla.mozilla.org/show_bug.cgi?id=870069
+    if (participants && participants.length > 1) {
+      return;
+    }
+
     // Call to 'option menu' or 'dialer' depending on existence of contact
     if (this.headerText.dataset.isContact == 'true') {
       ActivityPicker.call(phoneNumber);
@@ -1476,6 +1517,7 @@ var ThreadUI = global.ThreadUI = {
       options.show();
     }
   },
+
   onCreateContact: function thui_onCreateContact() {
     ThreadListUI.updateContactsInfo();
     // Update Header if needed
