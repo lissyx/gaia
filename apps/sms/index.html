@@ -170,7 +170,7 @@
         </section>
       </form>
     </article>
-    <menu id="attachment-options-menu" class="hide">
+    <menu id="attachment-options-menu" class="hide" tabindex="-1">
       <div>
         <form id="attachment-options" role="dialog" data-type="action">
           <header></header>
@@ -193,7 +193,7 @@
         </aside>
         <p class="name">${nameHTML}</p>
         <p>
-          ${type} ${numberHTML} ${carrier}
+          ${type} ${numberHTML}
         </p>
       </a>
       -->
@@ -249,7 +249,8 @@
 
     <div id="messages-recipient-tmpl" class="hide">
       <!--
-      <span class="recipient" contenteditable="${editable}"
+      <span class="recipient" x-inputmode="verbatim"
+        contenteditable="${editable}"
         data-number="${number}" data-source="${source}" data-name="${name}">
         ${name}
       </span>

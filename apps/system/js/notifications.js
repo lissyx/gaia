@@ -80,7 +80,7 @@ var NotificationScreen = {
     window.addEventListener('utilitytrayshow', this);
     window.addEventListener('unlock', this.clearLockScreen.bind(this));
     window.addEventListener('mozvisibilitychange', this);
-    window.addEventListener('appopen', this.handleAppopen.bind(this));
+    window.addEventListener('foreground', this.handleAppopen.bind(this));
 
     // in case of userproximity, avoid turning the screen on
     window.addEventListener('userproximity', this);
