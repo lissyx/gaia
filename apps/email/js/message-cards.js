@@ -1225,11 +1225,40 @@ MessageReaderCard.prototype = {
   },
 
   onForward: function(event) {
-    Cards.eatEventsUntilNextCard();
-    var composer = this.header.forwardMessage('inline', function() {
-      Cards.pushCard('compose', 'default', 'animate',
-                     { composer: composer });
-    });
+    // If we don't have a body yet, we can't forward the message.  In the future
+    // we should visibly disable the button until the body has been retrieved.
+    if (!this.body)
+      return;
+
+    var needToPrompt = this.header.hasAttachments ||
+      this.body.embeddedImageCount > 0;
+
+    var forwardMessage = (function() {
+      Cards.eatEventsUntilNextCard();
+      var composer = this.header.forwardMessage('inline', function() {
+             Cards.pushCard('compose', 'default', 'animate',
+                            { composer: composer });
+      });
+    }.bind(this));
+
+    if (needToPrompt) {
+      var dialog = msgNodes['attachment-disabled-confirm'].cloneNode(true);
+      ConfirmDialog.show(dialog,
+        {
+          id: 'msg-attachment-disabled-ok',
+          handler: function() {
+            forwardMessage();
+          }
+        },
+        {
+          id: 'msg-attachment-disabled-cancel',
+          handler: null
+        }
+      );
+    } else {
+      forwardMessage();
+    }
+
   },
 
   onDelete: function() {
@@ -1284,9 +1313,15 @@ MessageReaderCard.prototype = {
   onPeepClick: function(target) {
     var contents = msgNodes['contact-menu'].cloneNode(true);
     var email = target.dataset.address;
+    var headerNode = contents.getElementsByTagName('header')[0];
+    // Setup the marquee structure
+    Marquee.setup(email, headerNode);
+
     var contact = null;
-    contents.getElementsByTagName('header')[0].textContent = email;
+    // Activate marquee once the contents DOM are added to document
     document.body.appendChild(contents);
+    // XXX Remove 'ease' if linear animation is wanted
+    Marquee.activate('alternate', 'ease');
 
     /*
      * Show menu items based on the options which consists of values of

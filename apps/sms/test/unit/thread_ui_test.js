@@ -18,11 +18,13 @@ requireApp('sms/test/unit/mock_utils.js');
 requireApp('sms/test/unit/mock_navigatormoz_sms.js');
 requireApp('sms/test/unit/mock_link_helper.js');
 requireApp('sms/test/unit/mock_moz_activity.js');
+requireApp('sms/shared/test/unit/mocks/mock_navigator_moz_settings.js');
 requireApp('sms/test/unit/mock_contact.js');
 requireApp('sms/test/unit/mock_recipients.js');
 requireApp('sms/test/unit/mock_settings.js');
 requireApp('sms/test/unit/mock_activity_picker.js');
 requireApp('sms/test/unit/mock_action_menu.js');
+requireApp('sms/test/unit/mock_custom_dialog.js');
 
 var mocksHelperForThreadUI = new MocksHelper([
   'Attachment',
@@ -33,7 +35,8 @@ var mocksHelperForThreadUI = new MocksHelper([
   'LinkHelper',
   'MozActivity',
   'ActivityPicker',
-  'OptionMenu'
+  'OptionMenu',
+  'CustomDialog'
 ]);
 
 mocksHelperForThreadUI.init();
@@ -719,6 +722,30 @@ suite('thread_ui.js >', function() {
           assert.isTrue(this.container.classList.contains('sending'));
         });
       });
+      suite('send message in airplane mode >', function() {
+        var realMozSettings;
+        setup(function() {
+          MockNavigatorSettings.createLock().set({
+            'ril.radio.disabled' : true
+          });
+        });
+
+        suiteSetup(function() {
+          realMozSettings = navigator.mozSettings;
+          navigator.mozSettings = MockNavigatorSettings;
+        });
+        suiteTeardown(function() {
+          navigator.mozSettings = realMozSettings;
+        });
+
+        test('airplane alert is visible', function(done) {
+          ThreadUI.onMessageFailed(this.fakeMessage);
+          setTimeout(function() {
+            assert.isTrue(MockCustomDialog.mShown);
+            done();
+          });
+        });
+      });
     });
   });
 
@@ -1368,17 +1395,17 @@ suite('thread_ui.js >', function() {
       );
     });
 
-    test('Rendered Contact "type | number"', function() {
+    test('Rendered Contact "type, number"', function() {
       var ul = document.createElement('ul');
       var contact = new MockContact();
       var html;
 
       ThreadUI.renderContact(contact, 'foo', ul);
       html = ul.firstElementChild.innerHTML;
-      assert.ok(html.contains('Mobile | +346578888888'));
+      assert.ok(html.contains('Mobile, +346578888888'));
     });
 
-    test('Rendered Contact highlighted "type | number"', function() {
+    test('Rendered Contact highlighted "type, number"', function() {
       var ul = document.createElement('ul');
       var contact = new MockContact();
       var html;
@@ -1386,7 +1413,7 @@ suite('thread_ui.js >', function() {
       ThreadUI.renderContact(contact, '346578888888', ul);
       html = ul.firstElementChild.innerHTML;
       assert.ok(
-        html.contains('Mobile | +<span class="highlight">346578888888</span>')
+        html.contains('Mobile, +<span class="highlight">346578888888</span>')
       );
     });
   });

@@ -193,8 +193,8 @@ var ThreadUI = global.ThreadUI = {
 
     // Cache fixed measurement while init
     var style = window.getComputedStyle(this.input, null);
-    this.INPUT_PADDING = parseInt(style.getPropertyValue('padding-top'), 10) +
-      parseInt(style.getPropertyValue('padding-bottom'), 10);
+    this.INPUT_MARGIN = parseInt(style.getPropertyValue('margin-top'), 10) +
+      parseInt(style.getPropertyValue('margin-bottom'), 10);
   },
 
   // Initialize Recipients list and Recipients.View (DOM)
@@ -382,9 +382,9 @@ var ThreadUI = global.ThreadUI = {
   setInputMaxHeight: function thui_setInputMaxHeight() {
     // Method for initializing the maximum height
     // Set the input height to:
-    // view height - (vertical padding (+ to field height if edit new message))
+    // view height - (vertical margin (+ to field height if edit new message))
     var viewHeight = this.container.offsetHeight;
-    var adjustment = this.INPUT_PADDING;
+    var adjustment = this.INPUT_MARGIN;
     if (window.location.hash === '#new') {
       adjustment += this.toField.offsetHeight;
     }
@@ -523,7 +523,7 @@ var ThreadUI = global.ThreadUI = {
     // First of all we retrieve all CSS info which we need
     var inputCss = window.getComputedStyle(this.input, null);
     var inputMaxHeight = parseInt(inputCss.getPropertyValue('max-height'), 10);
-    var verticalPadding = this.INPUT_PADDING;
+    var verticalMargin = this.INPUT_MARGIN;
     var buttonHeight = this.sendButton.offsetHeight;
 
     // Retrieve elements useful in growing method
@@ -535,14 +535,13 @@ var ThreadUI = global.ThreadUI = {
     // Updating the height if scroll is bigger that height
     // This is when we have reached the header (UX requirement)
     if (this.input.scrollHeight > inputMaxHeight) {
-      // Height of the input is the maximum
-      this.input.style.height = inputMaxHeight + 'px';
-      // Update the bottom bar height taking into account the padding
-      bottomBar.style.height = (inputMaxHeight + verticalPadding) + 'px';
+      // Update the bottom bar height taking into account the margin
+      bottomBar.style.height = (inputMaxHeight + verticalMargin) + 'px';
+
       // We update the position of the button taking into account the
       // new height
       this.sendButton.style.marginTop = this.attachButton.style.marginTop =
-        (this.input.offsetHeight - buttonHeight) + 'px';
+        (this.input.offsetHeight + verticalMargin - buttonHeight) + 'px';
       return;
     }
 
@@ -552,19 +551,20 @@ var ThreadUI = global.ThreadUI = {
     this.input.style.height =
       this.input.offsetHeight > this.input.scrollHeight ?
       this.input.offsetHeight + 'px' :
-      (this.input.scrollHeight + verticalPadding) + 'px';
+      this.input.scrollHeight + 'px';
 
-    // We retrieve current height of the input
-    var newHeight = this.input.getBoundingClientRect().height;
+    // We calculate the current height of the input element (including margin)
+    var newHeight = this.input.getBoundingClientRect().height + verticalMargin;
 
     // We calculate the height of the bottonBar which contains the input
-    var bottomBarHeight = (newHeight + verticalPadding) + 'px';
+    var bottomBarHeight = newHeight + 'px';
     bottomBar.style.height = bottomBarHeight;
 
-    // We move the button to the right position
-    var buttonOffset = (this.input.offsetHeight - buttonHeight) + 'px';
+    // We set the buttons' top margin to ensure they render at the bottom of
+    // the container
+    var buttonOffset = this.input.offsetHeight + verticalMargin - buttonHeight;
     this.sendButton.style.marginTop = this.attachButton.style.marginTop =
-      buttonOffset;
+      buttonOffset + 'px';
 
     // Last adjustment to view taking into account the new height of the bar
     this.container.style.bottom = bottomBarHeight;
@@ -698,6 +698,8 @@ var ThreadUI = global.ThreadUI = {
        *  and how many other contacts share that same number. We think it's
        *  user's responsability to correct this mess with the agenda.
        */
+      // Bug 867948: contacts null is a legitimate case, and
+      // getContactDetails is okay with that.
       var details = Utils.getContactDetails(number, contacts);
       var contactName = details.title || number;
 
@@ -1250,24 +1252,26 @@ var ThreadUI = global.ThreadUI = {
 
   onMessageFailed: function thui_onMessageFailed(message) {
     var messageDOM = document.getElementById('message-' + message.id);
-    if (!messageDOM) {
-      return;
-    }
-    // Check if it was painted as 'error' before
-    if (messageDOM.classList.contains('error')) {
-      return;
-    }
+    // When this is the first message in a thread, we haven't displayed
+    // the new thread yet. The error flag will be shown when the thread
+    // will be rendered. See Bug 874043
+    if (messageDOM) {
 
-    // Update class names to reflect message state
-    messageDOM.classList.remove('sending');
-    messageDOM.classList.add('error');
+      // Check if it was painted as 'error' before
+      if (messageDOM.classList.contains('error')) {
+        return;
+      }
+
+      // Update class names to reflect message state
+      messageDOM.classList.remove('sending');
+      messageDOM.classList.add('error');
+    }
 
     this.ifRilDisabled(this.showAirplaneModeError);
   },
 
   ifRilDisabled: function thui_ifRilDisabled(func) {
     var settings = window.navigator.mozSettings;
-
     if (settings) {
       // Check if RIL is enabled or not
       var req = settings.createLock().get('ril.radio.disabled');
@@ -1381,15 +1385,14 @@ var ThreadUI = global.ThreadUI = {
       var current = tels[i];
       var number = current.value;
       var title = details.title || number;
-      var type = current.type ? (current.type + ' |') : '';
+      var type = current.type ? (current.type + ',') : '';
 
       var contactLi = document.createElement('li');
       var data = {
         name: Utils.escapeHTML(title),
         number: Utils.escapeHTML(number),
         type: type,
-        srcAttr: details.photoURL ?
-          'src="' + Utils.escapeHTML(details.photoURL) + '"' : '',
+        carrier: current.carrier || '',
         nameHTML: '',
         numberHTML: ''
       };
@@ -1407,18 +1410,9 @@ var ThreadUI = global.ThreadUI = {
       // Interpolate HTML template with data and inject.
       // Known "safe" HTML values will not be re-sanitized.
       contactLi.innerHTML = this.tmpl.contact.interpolate(data, {
-        safe: ['nameHTML', 'numberHTML', 'srcAttr']
+        safe: ['nameHTML', 'numberHTML']
       });
       contactsUl.appendChild(contactLi);
-
-      // Revoke contact photo after image onload.
-      var photo = contactLi.querySelector('img');
-      if (photo) {
-        photo.onload = photo.onerror = function revokePhotoURL() {
-          this.onload = this.onerror = null;
-          URL.revokeObjectURL(this.src);
-        };
-      }
     }
     return true;
   },

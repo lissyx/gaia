@@ -62,15 +62,20 @@ form[role="dialog"][data-type="edit"] header menu[type="toolbar"] button {
   text-align: left;
 }
 
-[data-type="list"] [data-last-message-type="mms"] .body-text {
-  padding-left: 2rem;
-  min-width: 1.8rem;
-  min-height: 1.6rem;
+#threads-container[data-type="list"] .mms-icon {
+  display: none;
   margin-left: 0.3rem;
 
-  background-image: url('images/paperclip.png');
-  background-repeat: no-repeat;
-  background-size: auto 100%;
+  font-size: 1.5rem;
+  color: #ff6622;
+}
+
+#threads-container[data-type="list"] [data-last-message-type="mms"] .mms-icon {
+  display: inline;
+}
+
+#threads-container[data-type="list"] [data-last-message-type="mms"] .body-text {
+  display: none;
 }
 
 [data-type="list"] header {
@@ -538,8 +543,7 @@ form.bottom[role="search"].messages-compose-form {
 
 /* Fix the compose buttons to the bottom of their container. */
 #messages-attach-button, #messages-send-button {
-  float: none;
-  position: absolute;
+  position: relative;
   bottom: 0;
 }
 #messages-attach-button {
@@ -584,10 +588,12 @@ form.bottom[role="search"].messages-compose-form {
 }
 
 #messages-compose-form [contentEditable] {
-  padding: 0.4rem 7rem 0.2rem 3.5rem;
-  line-height: 1.8rem !important;
+  padding: 0.1rem 0.5rem;
+  margin: 0.8rem 0.2rem;
+  line-height: 2rem;
   min-height: 1.9rem;
-  max-height: 37rem;
+  max-height: 36rem;
+  -moz-box-sizing: border-box;
   /* Cursor hides itself otherwise: */
   overflow: auto;
   text-align: left;

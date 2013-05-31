@@ -250,13 +250,7 @@ html, body {
   padding-left: 1.5rem;
 }
 
-#unlock-sim-screen .fake-input {
-  margin-top: -4rem;
-  opacity: 0;
-
-}
-
-#unlock-sim-screen input[type="number"] {
+#unlock-sim-screen input[type="password"] {
     -moz-box-sizing: border-box;
     display: block;
     overflow: hidden;
@@ -265,10 +259,6 @@ html, body {
     resize: none;
     padding: 0 0.8rem;
     pointer-events: auto;
-}
-
-#unlock-sim-screen input[type="password"] {
-  pointer-events: none;
 }
 
 /*
@@ -1040,6 +1030,30 @@ i.hack-first-child {
 }
 
 #data_3g .content p {
+  font-size: 1.4rem;
+}
+
+[data-type="list"] aside {
+  margin: 0 0.5rem 0 0 !important;
+}
+
+/*
+  geolocation
+*/
+
+#geolocation [data-type="list"] li {
+  padding: 0 1.5rem;
+}
+
+#geolocation label:not([for]) {
+  width: 6rem;
+}
+
+#geolocation .content {
+  padding: 0 3rem 1rem 3rem;
+}
+
+#geolocation .content p {
   font-size: 1.4rem;
 }
 

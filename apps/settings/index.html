@@ -5,6 +5,9 @@
     <meta http-equiv="pragma" content="no-cache"/>
     <title>Settings</title>
 
+    <!-- multi-resolution support -->
+    <link rel="stylesheet" href="/shared/style/responsive.css">
+
     <!-- Common style -->
     <link rel="stylesheet" type="text/css" href="shared/style/headers.css"/>
     <link rel="stylesheet" type="text/css" href="shared/style/switches.css"/>
@@ -13,8 +16,6 @@
     <link rel="stylesheet" type="text/css" href="style/lists.css"/>
     <link rel="stylesheet" type="text/css" href="style/icons.css"/>
     <link rel="stylesheet" type="text/css" href="style/settings.css"/>
-    <!-- High resolution device support -->
-    <link rel="stylesheet" type="text/css" href="shared/style/responsive.css"/>
 
     <!-- Panel Stylesheets
     <link rel="stylesheet" type="text/css" href="shared/style/action_menu.css"/>
@@ -31,6 +32,7 @@
     <!-- Shared resources
     <link rel="resource" type="application/json" href="shared/resources/tz.json"/>
     <link rel="resource" type="application/json" href="shared/resources/apn.json"/>
+    <link rel="resource" type="application/json" href="shared/resources/apn_tz.json"/>
     <link rel="resource" type="application/json" href="shared/resources/languages.json"/>
     <link rel="resource" type="application/json" href="shared/resources/keyboard_layouts.json"/>
     <link rel="resource" type="application/json" href="shared/resources/media/ringtones/"/>
@@ -1245,6 +1247,13 @@
             </label>
             <a data-l10n-id="unlock-screen">Unlock Screen</a>
           </li>
+          <li>
+            <label>
+              <input type="checkbox" name="bootshutdown.sound.enabled" checked />
+              <span></span>
+            </label>
+            <a data-l10n-id="boot-and-shutdown">Boot and Shutdown</a>
+          </li>
         </ul>
       </div>
 
@@ -1598,7 +1607,7 @@
       </header>
 
       <div class="passcode-overlay">
-        <input type="number" x-inputmode="digits" id="passcode-input" />
+        <input type="number" x-inputmode="digit" id="passcode-input" />
         <div class="passcode-container" id="passcode-container">
           <div class="passcode" id="passcode-pseudo-input">
             <label data-l10n-id="passcode">Passcode</label>
@@ -1704,16 +1713,14 @@
           <div id="pinArea" class="sim-code-area">
             <div data-l10n-id="simPin">SIM PIN</div>
             <div class="input-wrapper">
-              <input type="number" x-inputmode="digits" name="simpin" size="8" maxlength="8" />
-              <input type="text" name="simpinVis" size="8" maxlength="8" />
+              <input type="password" x-inputmode="digit" name="simpin" size="8" maxlength="8" />
             </div>
           </div>
 
           <div id="pukArea" class="sim-code-area">
             <div data-l10n-id="pukCode">PUK Code</div>
             <div class="input-wrapper">
-              <input type="number" x-inputmode="digits" name="simpuk" size="8" maxlength="8" />
-              <input type="text" name="simpukVis" size="8" maxlength="8" />
+              <input type="password" x-inputmode="digit" name="simpuk" size="8" maxlength="8" />
             </div>
           </div>
 
@@ -1722,8 +1729,7 @@
               Create PIN (must contain 4 to 8 digits)
             </div>
             <div class="input-wrapper">
-              <input type="number" x-inputmode="digits" name="newSimpin" size="8" maxlength="8" />
-              <input type="text" name="newSimpinVis" size="8" maxlength="8" />
+              <input type="password" x-inputmode="digit" name="newSimpin" size="8" maxlength="8" />
             </div>
           </div>
 
@@ -1732,8 +1738,7 @@
               Confirm New PIN
             </div>
             <div class="input-wrapper">
-              <input type="number" x-inputmode="digits" name="confirmNewSimpin" size="8" maxlength="8" />
-              <input type="text" name="confirmNewSimpinVis" size="8" maxlength="8" />
+              <input type="password" x-inputmode="digit" name="confirmNewSimpin" size="8" maxlength="8" />
             </div>
           </div>
         </div>
@@ -1941,6 +1946,13 @@
               <span></span>
             </label>
             <a data-l10n-id="paint-flashing">Flash repainted area</a>
+          </li>
+          <li>
+            <label>
+              <input type="checkbox" name="layers.draw-borders"/>
+              <span></span>
+            </label>
+            <a data-l10n-id="layers-draw-borders">Flash repainted area</a>
           </li>
           <li>
             <label>
@@ -2374,7 +2386,7 @@
                 <option value="0.05" data-l10n-id="powerSave-threshold" data-l10n-args='{"level":  "5"}'> 5% battery left</option>
                 <option value="0.15" data-l10n-id="powerSave-threshold" data-l10n-args='{"level": "15"}'>15% battery left</option>
                 <option value="0.25" data-l10n-id="powerSave-threshold" data-l10n-args='{"level": "25"}'>25% battery left</option>
-                <option value="0" data-l10n-id="never">Never</option>
+                <option value="-1" data-l10n-id="never">Never</option>
               </select>
             </p>
           </li>

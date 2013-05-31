@@ -251,7 +251,7 @@ writeContent(init, getDistributionFileContent('costcontrol', content));
 
 // SMS
 init = getFile(GAIA_DIR, 'apps', 'sms', 'js', 'blacklist.json');
-content = ["1515", "7000"];
+content = ["4850", "7000"];
 
 writeContent(init, getDistributionFileContent('sms-blacklist', content));
 
@@ -285,6 +285,12 @@ content = {
 }
 
 writeContent(init, getDistributionFileContent('browser', content));
+
+// Active Sensors
+init = getFile(GAIA_DIR, 'apps', 'settings', 'resources', 'sensors.json');
+content = { ambientLight: true };
+
+writeContent(init, getDistributionFileContent('sensors', content));
 
 // Support
 init = getFile(GAIA_DIR, 'apps', 'settings', 'resources', 'support.json');
