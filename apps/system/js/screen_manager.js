@@ -261,6 +261,15 @@ var ScreenManager = {
         this._cpuWakeLock = navigator.requestWakeLock('cpu');
         window.addEventListener('userproximity', this);
         break;
+
+      case 'devicemotion':
+        // Add a fake listener for events on Nexus S
+        // This is code copied from
+        // http://dl.dropbox.com/u/8727858/physical-events/index.html
+        // It appears to workaround the Nexus S bug where we're not
+        // getting orientation data.  See:
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=753245
+        break;
     }
   },
 
@@ -276,6 +285,14 @@ var ScreenManager = {
   },
 
   turnScreenOff: function scm_turnScreenOff(instant) {
+    // Remove the fake listener for events on Nexus S
+    // This is code copied from
+    // http://dl.dropbox.com/u/8727858/physical-events/index.html
+    // It appears to workaround the Nexus S bug where we're not
+    // getting orientation data.  See:
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=753245
+    window.removeEventListener('devicemotion', this);
+
     if (!this.screenEnabled)
       return false;
 
@@ -336,6 +353,15 @@ var ScreenManager = {
 
   turnScreenOn: function scm_turnScreenOn(instant) {
     this._screenOffBy = '';
+
+    // Add a fake listener for events on Nexus S
+    // This is code copied from
+    // http://dl.dropbox.com/u/8727858/physical-events/index.html
+    // It appears to workaround the Nexus S bug where we're not
+    // getting orientation data.  See:
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=753245
+    window.addEventListener('devicemotion', this);
+
     if (this.screenEnabled) {
       if (this._inTransition) {
         // Cancel the dim out
