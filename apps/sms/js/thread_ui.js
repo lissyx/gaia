@@ -55,6 +55,8 @@ var ThreadUI = global.ThreadUI = {
   // duration of the notification that message type was converted
   CONVERTED_MESSAGE_DURATION: 3000,
   recipients: null,
+  // Set to |true| when in edit mode
+  inEditMode: false,
   init: function thui_init() {
     var _ = navigator.mozL10n.get;
     var templateIds = ['contact', 'highlight', 'message', 'not-downloaded',
@@ -65,12 +67,12 @@ var ThreadUI = global.ThreadUI = {
 
     // Fields with 'messages' label
     [
-      'container', 'to-field', 'recipients-list',
+      'container', 'subheader', 'to-field', 'recipients-list',
       'header-text', 'recipient', 'input', 'compose-form',
       'check-all-button', 'uncheck-all-button',
       'contact-pick-button', 'back-button', 'send-button', 'attach-button',
       'delete-button', 'cancel-button',
-      'edit-mode', 'edit-form', 'tel-form',
+      'edit-icon', 'edit-mode', 'edit-form', 'tel-form',
       'max-length-notice', 'convert-notice'
     ].forEach(function(id) {
       this[Utils.camelCase(id)] = document.getElementById('messages-' + id);
@@ -82,6 +84,8 @@ var ThreadUI = global.ThreadUI = {
     // `navigator.mozMobileMessage` API
     this._mozMobileMessage = navigator.mozMobileMessage ||
       window.DesktopMockNavigatormozMobileMessage;
+
+    window.addEventListener('resize', this.resizeHandler.bind(this));
 
     // In case of input, we have to resize the input following UX Specs.
     Compose.on('input', this.messageComposerInputHandler.bind(this));
@@ -140,6 +144,10 @@ var ThreadUI = global.ThreadUI = {
       'click', this.cancelEdit.bind(this)
     );
 
+    this.editIcon.addEventListener(
+      'click', this.startEdit.bind(this)
+    );
+
     this.deleteButton.addEventListener(
       'click', this.delete.bind(this)
     );
@@ -155,9 +163,9 @@ var ThreadUI = global.ThreadUI = {
       'click', this.activateContact.bind(this)
     );
 
-    // When 'focus' we have to remove 'edit-mode' in the recipient
-    this.input.addEventListener(
-      'focus', this.messageComposerFocusHandler.bind(this)
+    // When 'blur' we have to remove 'edit-mode' in the recipient
+    this.toField.addEventListener(
+      'blur', this.recipientWrappingHandler.bind(this), true
     );
 
     this.container.addEventListener(
@@ -195,6 +203,21 @@ var ThreadUI = global.ThreadUI = {
     var style = window.getComputedStyle(this.input, null);
     this.INPUT_MARGIN = parseInt(style.getPropertyValue('margin-top'), 10) +
       parseInt(style.getPropertyValue('margin-bottom'), 10);
+
+    // Synchronize changes to the Compose field according to relevant changes
+    // in the subheader.
+    var subheaderMutationHandler = this.subheaderMutationHandler.bind(this);
+    var subheaderMutation = new MutationObserver(subheaderMutationHandler);
+    subheaderMutation.observe(this.subheader, {
+      attributes: true, subtree: true
+    });
+    subheaderMutation.observe(document.getElementById('thread-messages'), {
+      attributes: true
+    });
+    this.recipientsList.addEventListener('transitionend',
+      subheaderMutationHandler);
+
+    ThreadUI.setInputMaxHeight();
   },
 
   // Initialize Recipients list and Recipients.View (DOM)
@@ -216,6 +239,7 @@ var ThreadUI = global.ThreadUI = {
 
     if (this.recipients) {
       this.recipients.length = 0;
+      this.recipients.visible('singleline');
       this.recipients.focus();
     } else {
       this.recipients = new Recipients({
@@ -263,7 +287,7 @@ var ThreadUI = global.ThreadUI = {
     this.enableSend();
   },
 
-  messageComposerFocusHandler: function thui_messageInputHandler(event) {
+  recipientWrappingHandler: function thui_recipientWrappingHandler(event) {
     var node = this.recipientsList.lastChild;
     var typed;
 
@@ -314,6 +338,20 @@ var ThreadUI = global.ThreadUI = {
     this._convertNoticeTimeout = setTimeout(function hideConvertNotice() {
       this.convertNotice.classList.add('hide');
     }.bind(this), this.CONVERTED_MESSAGE_DURATION);
+  },
+
+  // Ensure that when the subheader is updated, the Compose field's dimensions
+  // are updated to avoid interference.
+  subheaderMutationHandler: function thui_subheaderMutationHandler() {
+    this.setInputMaxHeight();
+    this.updateInputHeight();
+  },
+
+  resizeHandler: function thui_resizeHandler() {
+    this.setInputMaxHeight();
+    this.updateInputHeight();
+    // Scroll to bottom
+    this.scrollViewToBottom();
   },
 
   // Create a recipient from contacts activity.
@@ -379,15 +417,14 @@ var ThreadUI = global.ThreadUI = {
     }
   },
 
+  // Limit the maximum height of the Compose input field such that it never
+  // grows larger than the space available.
   setInputMaxHeight: function thui_setInputMaxHeight() {
-    // Method for initializing the maximum height
-    // Set the input height to:
-    // view height - (vertical margin (+ to field height if edit new message))
     var viewHeight = this.container.offsetHeight;
-    var adjustment = this.INPUT_MARGIN;
-    if (window.location.hash === '#new') {
-      adjustment += this.toField.offsetHeight;
-    }
+    // Account for the vertical margin of the input field and the height of the
+    // absolutely-position sub-header element.
+    var adjustment = this.subheader.offsetHeight + this.INPUT_MARGIN;
+
     this.input.style.maxHeight = (viewHeight - adjustment) + 'px';
   },
 
@@ -525,9 +562,8 @@ var ThreadUI = global.ThreadUI = {
     var inputMaxHeight = parseInt(inputCss.getPropertyValue('max-height'), 10);
     var verticalMargin = this.INPUT_MARGIN;
     var buttonHeight = this.sendButton.offsetHeight;
-
-    // Retrieve elements useful in growing method
-    var bottomBar = this.composeForm;
+    var composeForm = this.composeForm;
+    var newHeight;
 
     // We need to grow the input step by step
     this.input.style.height = null;
@@ -535,8 +571,16 @@ var ThreadUI = global.ThreadUI = {
     // Updating the height if scroll is bigger that height
     // This is when we have reached the header (UX requirement)
     if (this.input.scrollHeight > inputMaxHeight) {
-      // Update the bottom bar height taking into account the margin
-      bottomBar.style.height = (inputMaxHeight + verticalMargin) + 'px';
+      // Calculate the new Compose form height taking the input's margin into
+      // account
+      newHeight = inputMaxHeight + verticalMargin;
+
+      // Modify the input's scroll position to counteract the change in
+      // vertical offset that would otherwise result from setting the Compose
+      // form's height
+      this.input.scrollTop += parseInt(composeForm.style.height, 10) -
+        newHeight;
+      composeForm.style.height = newHeight + 'px';
 
       // We update the position of the button taking into account the
       // new height
@@ -554,11 +598,10 @@ var ThreadUI = global.ThreadUI = {
       this.input.scrollHeight + 'px';
 
     // We calculate the current height of the input element (including margin)
-    var newHeight = this.input.getBoundingClientRect().height + verticalMargin;
+    newHeight = this.input.getBoundingClientRect().height + verticalMargin;
 
-    // We calculate the height of the bottonBar which contains the input
-    var bottomBarHeight = newHeight + 'px';
-    bottomBar.style.height = bottomBarHeight;
+    // We calculate the height of the Compose form which contains the input
+    composeForm.style.height = newHeight + 'px';
 
     // We set the buttons' top margin to ensure they render at the bottom of
     // the container
@@ -566,8 +609,6 @@ var ThreadUI = global.ThreadUI = {
     this.sendButton.style.marginTop = this.attachButton.style.marginTop =
       buttonOffset + 'px';
 
-    // Last adjustment to view taking into account the new height of the bar
-    this.container.style.bottom = bottomBarHeight;
     this.scrollViewToBottom();
   },
 
@@ -1012,6 +1053,12 @@ var ThreadUI = global.ThreadUI = {
     this.checkInputs();
   },
 
+  startEdit: function thui_edit() {
+    this.inEditMode = true;
+    this.cleanForm();
+    this.mainWrapper.classList.toggle('edit');
+  },
+
   delete: function thui_delete() {
     var question = navigator.mozL10n.get('deleteMessages-confirmation');
     if (window.confirm(question)) {
@@ -1035,12 +1082,12 @@ var ThreadUI = global.ThreadUI = {
             ThreadUI.removeMessageDOM(inputs[i].parentNode.parentNode);
           }
 
+          ThreadUI.cancelEdit();
+
           if (!ThreadUI.container.firstElementChild) {
-            ThreadUI.mainWrapper.classList.remove('edit');
             window.location.hash = '#thread-list';
-          } else {
-            window.history.back();
           }
+
           WaitingScreen.hide();
         });
       };
@@ -1050,7 +1097,8 @@ var ThreadUI = global.ThreadUI = {
   },
 
   cancelEdit: function thlui_cancelEdit() {
-    window.history.go(-1);
+    this.inEditMode = false;
+    this.mainWrapper.classList.remove('edit');
   },
 
   chooseMessage: function thui_chooseMessage(target) {
@@ -1078,11 +1126,11 @@ var ThreadUI = global.ThreadUI = {
     }
     if (selected.length > 0) {
       this.uncheckAllButton.disabled = false;
-      this.deleteButton.disabled = false;
+      this.deleteButton.classList.remove('disabled');
       this.editMode.innerHTML = _('selected', {n: selected.length});
     } else {
       this.uncheckAllButton.disabled = true;
-      this.deleteButton.disabled = true;
+      this.deleteButton.classList.add('disabled');
       this.editMode.innerHTML = _('editMode');
     }
   },
@@ -1135,7 +1183,7 @@ var ThreadUI = global.ThreadUI = {
   handleEvent: function thui_handleEvent(evt) {
     switch (evt.type) {
       case 'click':
-        if (window.location.hash !== '#edit') {
+        if (!this.inEditMode) {
           // if the click wasn't on an attachment check for other clicks
           if (!thui_mmsAttachmentClick(evt.target)) {
             this.handleMessageClick(evt);
@@ -1457,7 +1505,8 @@ var ThreadUI = global.ThreadUI = {
       // TODO Modify in Bug 861227 in order to create a standalone element
       var contactsUl = document.createElement('ul');
       contactsUl.classList.add('contactList');
-      contactsUl.addEventListener('click', function contactsUlHandler(event) {
+      // Using mousedown event can execute before blur event.
+      contactsUl.addEventListener('mousedown', function uiHandler(event) {
         // Since the "dataset" DOMStringMap property is essentially
         // just an object of properties that exactly match the properties
         // used for recipients, push the whole dataset object into
@@ -1467,7 +1516,7 @@ var ThreadUI = global.ThreadUI = {
         ).focus();
 
         // Clean up the event listener
-        contactsUl.removeEventListener('click', contactsUlHandler);
+        contactsUl.removeEventListener('mousedown', contactsUlHandler);
 
         event.stopPropagation();
         event.preventDefault();
@@ -1547,11 +1596,5 @@ var ThreadUI = global.ThreadUI = {
 };
 
 window.confirm = window.confirm; // allow override in unit tests
-
-window.addEventListener('resize', function resize() {
-  ThreadUI.setInputMaxHeight();
-  // Scroll to bottom
-  ThreadUI.scrollViewToBottom();
-});
 
 }(this));
