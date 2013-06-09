@@ -71,6 +71,10 @@ window.Evme = new function Evme_Core() {
     };
 
     function initObjects(data) {
+        Evme.Features.init({
+            "featureStateByConnection": data.featureStateByConnection
+        });
+        
         Evme.ConnectionMessage.init({
         });
         
@@ -144,6 +148,10 @@ window.Evme = new function Evme_Core() {
             "pageRenderStartTs": head_ts,
             "SEARCH_SOURCES": data.searchSources,
             "PAGEVIEW_SOURCES": data.pageViewSources
+        });
+    
+        Evme.Tasker.init({
+          "triggerInterval": data.taskerTriggerInterval
         });
 
         Evme.EventHandler.trigger(NAME, "init", {"deviceId": Evme.DoATAPI.getDeviceId()});

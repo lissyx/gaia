@@ -218,7 +218,6 @@ Evme.Brain = new function Evme_Brain() {
         this.returnPressed = function returnPressed(data) {
             var query = Evme.Searchbar.getValue();
             Searcher.searchExactFromOutside(query, SEARCH_SOURCES.RETURN_KEY);
-            Evme.Searchbar.blur();
         };
 
         // toggle classname when searchbar is empty
@@ -489,6 +488,116 @@ Evme.Brain = new function Evme_Brain() {
             }
             Evme.Utils.log('{' + s.join('},{') + '}');
         };
+    };
+
+    // modules/Tasker/
+    this.Tasker = new function Tasker() {
+      var self = this;
+      
+      this.TASK_UPDATE_SHORTCUT_ICONS = "updateShortcutIcons";
+
+      // module init
+      this.init = function init() {
+        Evme.Tasker.add({
+          "id": self.TASK_UPDATE_SHORTCUT_ICONS
+        });
+      };
+
+      // when a new task is added to the queue
+      this.taskAdded = function taskAdded(data) {
+        
+      };
+
+      // process the queue
+      this.trigger = function trigger(data) {
+        var tasks = data.tasks;
+
+        for (var id in tasks) {
+          if (self['callback_' + id]) {
+            self['callback_' + id](tasks[id])
+          } else {
+            Evme.Utils.log('Error: No handler for task [' + id + ']');
+          }
+        }
+      };
+
+      this['callback_' + this.TASK_UPDATE_SHORTCUT_ICONS] = function updateShortcutIcons(taskData) {
+        if (Evme.Brain.ShortcutsCustomize.isOpen()) {
+          return false;
+        }
+        
+        Evme.DoATAPI.Shortcuts.get(null, function onSuccess(data){
+          var appsKey = [],
+              currentShortcuts = data && data.response && data.response.shortcuts || [],
+              shortcutsToSend = {};
+  
+          for (var i=0, shortcut, query; shortcut=currentShortcuts[i++];) {
+              query = shortcut.query;
+  
+              if (shortcut.experienceId && !query) {
+                  query = Evme.Utils.l10n('shortcut', 'id-' + Evme.Utils.shortcutIdToKey(shortcut.experienceId));
+              }
+              
+              if (query) {
+                  shortcutsToSend[query.toLowerCase()] = shortcut.experienceId;
+              }
+              
+              // the appsKey will be used later on to determine change
+              appsKey = appsKey.concat(shortcut.appIds);
+          }
+          
+          // re-request all the user's shortcuts to upadte them from the API
+          // otherwise the shortcut icons will remain static and will never change, even if
+          // the apps inside them have
+          Evme.DoATAPI.shortcutsGet({
+            "queries": JSON.stringify(Object.keys(shortcutsToSend)),
+            "_NOCACHE": true
+          }, function onShortcutsGet(response) {
+            var shortcuts = response.response.shortcuts,
+                icons = response.response.icons,
+                newAppsKey = [];
+            
+            if (!shortcuts || !icons) {
+              return;
+            }
+            
+            // create a key from the new shortcuts' icons to determine change
+            for (var i=0,shortcut; shortcut=shortcuts[i++];) {
+              newAppsKey = newAppsKey.concat(shortcut.appIds);
+            }
+            
+            // if the icons haven't changed- no need to update everything and cause a UI refresh
+            if (appsKey.join(',') === newAppsKey.join(',')) {
+              Evme.Utils.log('Shortcuts keys are the same- no need to refresh')
+              return;
+            }
+
+            // experience is more "important" than the query, so if we got it
+            // we reomve the query
+            for (var i=0,shortcut; shortcut=shortcuts[i++];) {
+              if (!shortcut.experienceId) {
+                shortcut.experienceId = shortcutsToSend[shortcut.query];
+              }
+              if (shortcut.experienceId) {
+                delete shortcut.query;
+              }
+            }
+
+            Evme.Utils.log('Updating shortcuts: ' + JSON.stringify(shortcuts));
+            
+            Evme.DoATAPI.Shortcuts.clear(function onShortcuteCleared(){
+              Evme.DoATAPI.Shortcuts.add({
+                  "shortcuts": shortcuts,
+                  "icons": icons
+              }, function onSuccess(){
+                  Brain.Shortcuts.loadFromAPI();
+              });
+            });
+          });
+          
+          return true;
+        });
+      };
     };
 
     // modules/Apps/
@@ -1032,12 +1141,13 @@ Evme.Brain = new function Evme_Brain() {
               icons = {},
               numberOfIconsInShortcut = (Evme.Utils.getIconGroup() || []).length;
               
+          shortcutsToUpdate[key] = [];
           for (var i=0,app; i<numberOfIconsInShortcut; i++) {
             app = apps[i];
             icons[app.id] = app.icon;
+            shortcutsToUpdate[key].push(app.id);
           }
-          shortcutsToUpdate[key] = Object.keys(icons);
-          
+
           Evme.DoATAPI.Shortcuts.update({
             "shortcuts": shortcutsToUpdate,
             "icons": icons
@@ -1138,6 +1248,8 @@ Evme.Brain = new function Evme_Brain() {
 
         // item remove
         this.remove = function remove(data) {
+            Evme.Utils.log('Remove shortcut: ' + JSON.stringify(data));
+
             Evme.Shortcuts.remove(data.shortcut);
             Evme.DoATAPI.Shortcuts.remove(data.data);
         };
@@ -1185,10 +1297,12 @@ Evme.Brain = new function Evme_Brain() {
         // done button clicked
         this.done = function done(data) {
             if (data.shortcuts && data.shortcuts.length > 0) {
+                Evme.Utils.log('Adding shortcuts: ' + data.shortcuts);
                 Evme.DoATAPI.Shortcuts.add({
                     "shortcuts": data.shortcuts,
                     "icons": data.icons
                 }, function onSuccess(){
+                    Evme.Utils.log('Done, let\s refresh the UI');
                     Brain.Shortcuts.loadFromAPI();
                 });
             }
@@ -1214,8 +1328,8 @@ Evme.Brain = new function Evme_Brain() {
     
                 // load user/default shortcuts from API
                 Evme.DoATAPI.Shortcuts.get(null, function onSuccess(data){
-                    var loadedResponse = data.response,
-                        currentIcons = loadedResponse.icons,
+                    var loadedResponse = data.response || {},
+                        currentIcons = loadedResponse.icons || {},
                         arrCurrentShortcuts = [],
                         shortcutsToSelect = {};
     
@@ -1291,6 +1405,34 @@ Evme.Brain = new function Evme_Brain() {
             el.appendChild(elCustomize);
         };
     };
+    
+    // modules/Features/Features.js
+    this.Features = new function Features() {
+      // called when a feature state is changed
+      this.set = function set(data) {
+        var featureName = data.featureName,
+            isEnabled = data.newValue;
+
+        if (!isEnabled) {
+          if (featureName === 'typingApps') {
+            Searcher.cancelSearch();
+            Evme.Apps.clear();
+            
+            // if there are no icons, we also disable images
+            // no point in showing background image without apps
+            Evme.Features.disable('typingImage');
+          }
+          if (featureName === 'typingImage') {
+            Searcher.cancelImageSearch();
+            Evme.BackgroundImage.loadDefault();
+          }
+        } else {
+          if (featureName === 'typingImage') {
+            Evme.Features.enable('typingApps');
+          }
+        }
+      };
+    };
 
     // helpers/Utils.Connection
     this.Connection = new function Connection() {
@@ -1335,6 +1477,8 @@ Evme.Brain = new function Evme_Brain() {
             // TODO in the future, we might want to refresh results
             // to reflect accurate location.
             // but for now only the next request will use the location
+
+            Evme.Tasker.trigger(true);
         };
         
         // construct a valid API url- for debugging purposes
@@ -1427,6 +1571,15 @@ Evme.Brain = new function Evme_Brain() {
             }
 
             iconsFormat = Evme.Utils.getIconsFormat();
+            
+            // override icons format according to connection
+            if (!Evme.Features.isOn('iconQuality')) {
+              iconsFormat = Evme.Utils.ICONS_FORMATS.Small;
+              Evme.Features.startTimingFeature('iconQuality', Evme.Features.ENABLE);
+            } else {
+              Evme.Features.startTimingFeature('iconQuality', Evme.Features.DISABLE);
+            }
+            
             options.iconsFormat = iconsFormat;
 
             var _NOCACHE = false;
@@ -1434,7 +1587,7 @@ Evme.Brain = new function Evme_Brain() {
                 _NOCACHE = true;
             }
 
-            cancelSearch();
+            Searcher.cancelSearch();
 
             var installedApps = [];
             if (appsCurrentOffset == 0) {
@@ -1643,6 +1796,12 @@ Evme.Brain = new function Evme_Brain() {
 
             Evme.Searchbar.endRequest();
 
+            // consider this benchmark only if the response didn't come from the cache
+            if (!data._cache) {
+              Evme.Features.stopTimingFeature('typingApps', true);
+              Evme.Features.stopTimingFeature('iconQuality', true);
+            }
+
             return true;
         }
 
@@ -1682,8 +1841,8 @@ Evme.Brain = new function Evme_Brain() {
 
             Searcher.clearTimeoutForShowingDefaultImage();
 
-            var query = data.response.completion;
-            var image = Evme.Utils.formatImageData(data.response.image);
+            var query = data.response.completion,
+                image = Evme.Utils.formatImageData(data.response.image);
 
             if (image) {
                 lastQueryForImage = query;
@@ -1696,6 +1855,8 @@ Evme.Brain = new function Evme_Brain() {
 
                 Evme.BackgroundImage.update(image);
             }
+            
+            Evme.Features.stopTimingFeature('typingImage');
         }
 
         this.getIcons = function getIcons(ids, format) {
@@ -1748,24 +1909,19 @@ Evme.Brain = new function Evme_Brain() {
                 if (!data) {
                     return;
                 }
-
                 var items = data.response || [];
                 autocompleteCache[query] = items;
                 getAutocompleteComplete(items, query);
-                requestAutocomplete = null;
             });
         };
 
         function getAutocompleteComplete(items, querySentWith) {
-            if (!requestAutocomplete) {
-                return;
-            }
-            
             window.clearTimeout(timeoutAutocomplete);
             timeoutAutocomplete = window.setTimeout(function onTimeout(){
                 if (Evme.Utils.isKeyboardVisible && !requestSearch) {
                     Evme.Helper.loadSuggestions(items);
                     Evme.Helper.showSuggestions(querySentWith);
+                    requestAutocomplete = null;
                 }
             }, TIMEOUT_BEFORE_RENDERING_AC);
         };
@@ -1876,14 +2032,18 @@ Evme.Brain = new function Evme_Brain() {
                 "offset": offset,
                 "automaticSearch": automaticSearch
             };
-
+            
+            Evme.Features.startTimingFeature('typingApps', Evme.Features.ENABLE);
             Searcher.getApps(options);
+            
+            Evme.Features.startTimingFeature('typingImage', Evme.Features.ENABLE);
             Searcher.getBackgroundImage(options);
         };
 
         this.searchExactAsYouType = function searchExactAsYouType(query, queryTyped) {
             resetLastSearch(true);
-            cancelSearch();
+            
+            Searcher.cancelSearch();
             appsCurrentOffset = 0;
 
             var options = {
@@ -1895,11 +2055,18 @@ Evme.Brain = new function Evme_Brain() {
                 "onlyDidYouMean": true
             };
 
-            Searcher.getApps(options);
-            Searcher.getBackgroundImage(options);
+            if (Evme.Features.isOn('typingApps')) {
+              Evme.Features.startTimingFeature('typingApps', Evme.Features.ENABLE);
+              Searcher.getApps(options);
+            }
+            
+            if (Evme.Features.isOn('typingImage')) {
+              Evme.Features.startTimingFeature('typingImage', Evme.Features.ENABLE);
+              Searcher.getBackgroundImage(options);
+            }
         };
 
-        this.searchAsYouType = function searchAsYouType(query, source){
+        this.searchAsYouType = function searchAsYouType(query, source) {
             appsCurrentOffset = 0;
 
             Searcher.getAutocomplete(query);
@@ -1909,33 +2076,46 @@ Evme.Brain = new function Evme_Brain() {
                 "source": source
             };
 
-            requestSearch && requestSearch.abort && requestSearch.abort();
-            window.clearTimeout(timeoutSearchWhileTyping);
-            timeoutSearchWhileTyping = window.setTimeout(function onTimeout(){
-                Searcher.getApps(searchOptions);
-            }, TIMEOUT_BEFORE_RUNNING_APPS_SEARCH);
+            if (Evme.Features.isOn('typingApps')) {
+              requestSearch && requestSearch.abort && requestSearch.abort();
+              window.clearTimeout(timeoutSearchWhileTyping);
+              timeoutSearchWhileTyping = window.setTimeout(function onTimeout(){
+                  Evme.Features.startTimingFeature('typingApps', Evme.Features.DISABLE);
+                  Searcher.getApps(searchOptions);
+              }, TIMEOUT_BEFORE_RUNNING_APPS_SEARCH);
+            }
 
-            requestImage && requestImage.abort && requestImage.abort();
-            window.clearTimeout(timeoutSearchImageWhileTyping);
-            timeoutSearchImageWhileTyping = window.setTimeout(function onTimeout(){
-                Searcher.getBackgroundImage(searchOptions);
-            }, TIMEOUT_BEFORE_RUNNING_IMAGE_SEARCH);
+            if (Evme.Features.isOn('typingImage')) {
+              requestImage && requestImage.abort && requestImage.abort();
+              window.clearTimeout(timeoutSearchImageWhileTyping);
+              timeoutSearchImageWhileTyping = window.setTimeout(function onTimeout(){
+                  Evme.Features.startTimingFeature('typingImage', Evme.Features.DISABLE);
+                  Searcher.getBackgroundImage(searchOptions);
+              }, TIMEOUT_BEFORE_RUNNING_IMAGE_SEARCH);
+            }
         };
 
         this.cancelRequests = function cancelRequests() {
-            cancelSearch();
+            Evme.Features.stopTimingFeature('typingApps');
+            Evme.Features.stopTimingFeature('typingImage');
+            
+            Searcher.cancelSearch();
             cancelAutocomplete();
-
-            Searcher.clearTimeoutForShowingDefaultImage();
-            window.clearTimeout(timeoutSearchImageWhileTyping);
-            requestImage && requestImage.abort && requestImage.abort();
-            requestImage = null;
+            
+            Searcher.cancelImageSearch();
             
             requestIcons && requestIcons.abort && requestIcons.abort();
             requestIcons = null;
         };
+        
+        this.cancelImageSearch = function cancelImageSearch() {
+            Searcher.clearTimeoutForShowingDefaultImage();
+            window.clearTimeout(timeoutSearchImageWhileTyping);
+            requestImage && requestImage.abort && requestImage.abort();
+            requestImage = null;
+        };
 
-        function cancelSearch() {
+        this.cancelSearch = function cancelSearch() {
             window.clearTimeout(timeoutShowAppsLoading);
             window.clearTimeout(timeoutSearchWhileTyping);
             window.clearTimeout(timeoutSearch);

@@ -24,6 +24,8 @@
 
     ACTIVE: 'active',
 
+    LONG: 'long',
+
     hasBeenActive: false,
 
     busyPrecision: (24 / 12),
@@ -385,8 +387,11 @@
      * Activate this child view visually.
      */
     activate: function() {
-      this.element.classList.add(this.ACTIVE);
 
+      this.element.classList.add(this.ACTIVE);
+      if (this.weeks === 6) {
+        this.element.parentNode.nextElementSibling.classList.add(this.LONG);
+      }
 
       /**
        * The first time we "activate" a view we initialize its
@@ -413,6 +418,9 @@
      */
     deactivate: function() {
       this.element.classList.remove(this.ACTIVE);
+      if (this.weeks === 6) {
+        this.element.parentNode.nextElementSibling.classList.remove(this.LONG);
+      }
     },
 
     /**

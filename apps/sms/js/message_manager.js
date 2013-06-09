@@ -201,11 +201,18 @@ var MessageManager = {
     var threadMessages = document.getElementById('thread-messages');
     var recipient;
 
+    // Group Participants should never persist any hash changes
+    ThreadUI.groupView.reset();
+
+    // Leave the edit mode before transitioning to another panel. This is safe
+    // to do even if we're not in edit mode as it's essentially a no-op then.
+    ThreadUI.cancelEdit();
+    ThreadListUI.cancelEdit();
+
     switch (window.location.hash) {
       case '#new':
 
         ThreadUI.cleanFields(true);
-        mainWrapper.classList.remove('edit');
         threadMessages.classList.add('new');
 
         MessageManager.activity.recipients = null;
@@ -237,6 +244,8 @@ var MessageManager = {
         });
         break;
       case '#thread-list':
+        ThreadUI.inThread = false;
+
         //Keep the  visible button the :last-child
         var editButton = document.getElementById('messages-edit-icon');
         editButton.parentNode.appendChild(editButton);
@@ -258,6 +267,9 @@ var MessageManager = {
           });
         }
         break;
+      case '#group-view':
+        ThreadUI.groupView();
+        break;
       default:
         var threadId = Threads.currentId;
         var filter;
@@ -266,9 +278,7 @@ var MessageManager = {
           filter = new MozSmsFilter();
           filter.threadId = threadId;
 
-          if (mainWrapper.classList.contains('edit')) {
-            mainWrapper.classList.remove('edit');
-          } else if (threadMessages.classList.contains('new')) {
+          if (threadMessages.classList.contains('new')) {
             // After a message is sent...
             //
             threadMessages.classList.remove('new');
@@ -284,7 +294,14 @@ var MessageManager = {
             // Update Header
             ThreadUI.updateHeaderData(function updateHeader() {
               MessageManager.slide('left', function slideEnd() {
-                ThreadUI.renderMessages(filter);
+                // hashchanges from #group-view back to #thread=n
+                // are considered "in thread" and should not
+                // trigger a complete re-rendering of the messages
+                // in the thread.
+                if (!ThreadUI.inThread) {
+                  ThreadUI.inThread = true;
+                  ThreadUI.renderMessages(filter);
+                }
               });
             });
           }

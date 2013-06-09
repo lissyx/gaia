@@ -18,8 +18,10 @@ Evme.__config = {
     "minimumLettersForSearch": 1,
     "defaultBGImage": "",
     "bgImageSize": [320, 460],
+     // 24 hours
+    "taskerTriggerInterval": 24 * 60 * 60 * 1000,
     "searchbar": {
-        "timeBeforeEventPause": 1600,
+        "timeBeforeEventPause": 10000,
         "timeBeforeEventIdle": 10000
     },
     "searchSources": {
@@ -98,6 +100,22 @@ Evme.__config = {
                 ]
             }
         }
+    },
+    // disableAfter: if the app can't render the feature under the timeout, it will disable it
+    // bringBack: if, after disabling the feature, it's faster than bringBack- re-enable it
+    "featureStateByConnection": {
+      "iconQuality": {
+        "disableAfter": 2500,
+        "bringBack": 600
+      },
+      "typingImage": {
+        "disableAfter": 3000,
+        "bringBack": 1500
+      },
+      "typingApps": {
+        "disableAfter": 3500,
+        "bringBack": 800
+      }
     },
     // time before refreshing user location (milliseconds)
     "locationInterval": 10 * 60 * 1000,

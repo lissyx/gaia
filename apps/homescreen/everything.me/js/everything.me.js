@@ -90,6 +90,8 @@ var EverythingME = {
                     'modules/Helper/Helper.js',
                     'modules/ConnectionMessage/ConnectionMessage.js',
                     'modules/SmartFolder/SmartFolder.js',
+                    'modules/Tasker/Tasker.js',
+                    'modules/Features/Features.js',
                     'js/helpers/Storage.js',
                     'js/plugins/Scroll.js',
                     'js/external/uuid.js',

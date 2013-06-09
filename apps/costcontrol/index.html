@@ -54,6 +54,9 @@
   </head>
   <body role="application">
 
+    <section id="splash_section" class="window splash">
+    </section>
+
     <section id="main" role="region" class="window skin-organic non-ready">
       <!-- XXX: The order of sections is important (tabs should be place above
 the overlays) and we should distinguish between TABS and OVERLAY VIEWS -->
@@ -129,16 +132,17 @@ the overlays) and we should distinguish between TABS and OVERLAY VIEWS -->
 
           <ul class="buttons-list">
             <li>
-              <button class="icon icon-topup" id="balance-tab-topup-ussd-button" data-l10n-id="topup-ussd-button2">
+              <button class="icon icon-topup" id="balance-tab-topup-ussd-button" data-l10n-id="topup-ussd-button2" aria-hidden="true">
                 Open top-up menu
               </button>
             </li>
             <li>
-              <button class="icon icon-topupcode" id="balance-tab-topup-button" data-l10n-id="topup-button2">
+              <button class="icon icon-topupcode" id="balance-tab-topup-button" data-l10n-id="topup-button2" aria-hidden="true">
                 Use top-up code
               </button>
             </li>
           </ul>
+          <script type="text/javascript" defer src="js/views/TopUpLayoutController.js"></script>
           <script type="text/javascript" defer src="js/views/balance.js"></script>
         </section>
         -->
@@ -284,6 +288,6 @@ the overlays) and we should distinguish between TABS and OVERLAY VIEWS -->
   </section>
   <iframe id="message-handler" src="message_handler.html">
   </iframe>
+  <iframe id="fte_view" class="window non-ready"></iframe>
 </body>
 </html>
-

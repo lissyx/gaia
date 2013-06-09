@@ -172,6 +172,7 @@ var currentInputMode = null;
 var menuLockedArea = null;
 var candidatePanelEnabled = false;
 var isKeyboardRendered = false;
+var currentCandidates = [];
 const CANDIDATE_PANEL_SWITCH_TIMEOUT = 100;
 
 // Show accent char menu (if there is one) after ACCENT_CHAR_MENU_TIMEOUT
@@ -492,6 +493,11 @@ function handleNewKeyboards() {
   // Now load each of these keyboards and their input methods
   for (var i = 0; i < enabledKeyboardNames.length; i++)
     loadKeyboard(enabledKeyboardNames[i]);
+
+  // If the keyboard has been disabled, reset keyboardName allowing it to be
+  // properly set when showing the keyboard
+  if (enabledKeyboardNames.indexOf(keyboardName) == -1)
+    keyboardName = null;
 }
 
 // Map the input type to another type
@@ -765,6 +771,9 @@ function renderKeyboard(keyboardName) {
     // Tell the input method about the new keyboard layout
     updateLayoutParams();
 
+    //restore the previous candidates
+    IMERender.showCandidates(currentCandidates);
+
     isKeyboardRendered = true;
   }
 
@@ -810,6 +819,9 @@ function setUpperCase(upperCase, upperCaseLocked) {
   });
   // And make sure the caps lock key is highlighted correctly
   IMERender.setUpperCaseLock(isUpperCaseLocked ? 'locked' : isUpperCase);
+
+  //restore the previous candidates
+  IMERender.showCandidates(currentCandidates);
 }
 
 function resetUpperCase() {
@@ -1434,16 +1446,22 @@ function sendKey(keyCode) {
 // The state argument is the data passed with that event, and includes
 // the input field type, its inputmode, its content, and the cursor position.
 function showKeyboard(state) {
+  var newKeyboardName = currentKeyboardName;
   // If the keyboard is not initialized or the layout has changed,
   // set the new keyboard
   if (keyboardName !== currentKeyboardName) {
     // Make sure that currentKeyboardName is enabled. If not, use
     // the first enabled keyboard as the default.
-    if (enabledKeyboardNames.indexOf(currentKeyboardName) == -1)
-      currentKeyboardName = enabledKeyboardNames[0];
+    if (enabledKeyboardNames.indexOf(currentKeyboardName) == -1) {
+      // Update the keyboard.current setting with the first enabled keyboard
+      navigator.mozSettings.createLock().set({
+        'keyboard.current': enabledKeyboardNames[0]
+      });
+      newKeyboardName = enabledKeyboardNames[0];
+    }
 
     // Now initialize that keyboard
-    setKeyboardName(currentKeyboardName);
+    setKeyboardName(newKeyboardName);
   }
 
   IMERender.showIME();
@@ -1515,6 +1533,7 @@ function loadIMEngine(name) {
   var glue = {
     path: sourceDir + imEngine,
     sendCandidates: function kc_glue_sendCandidates(candidates) {
+      currentCandidates = candidates;
       IMERender.showCandidates(candidates);
     },
     sendPendingSymbols:
