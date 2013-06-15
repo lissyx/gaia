@@ -190,6 +190,13 @@ var Compose = (function() {
 
         var last = content.length - 1;
         var text = node.textContent;
+
+        // Bug 877141 - contenteditable wil insert non-break spaces when
+        // multiple consecutive spaces are entered, we don't want them.
+        if (text) {
+          text = text.replace(/\u00A0/g, ' ');
+        }
+
         if (node.nodeName == 'BR') {
           if (node === dom.message.lastChild) {
             continue;
@@ -322,6 +329,11 @@ var Compose = (function() {
     onAttachClick: function thui_onAttachClick(event) {
       var request = this.requestAttachment();
       request.onsuccess = this.append.bind(this);
+      request.onerror = function(err) {
+        if (err === 'file too large') {
+          alert(navigator.mozL10n.get('file-too-large'));
+        }
+      };
     },
 
     onAttachmentClick: function thui_onAttachmentClick(event) {
@@ -354,6 +366,11 @@ var Compose = (function() {
             composeCheck({type: 'input'});
             AttachmentMenu.close();
           }).bind(this);
+          request.onerror = function(err) {
+            if (err === 'file too large') {
+              alert(navigator.mozL10n.get('file-too-large'));
+            }
+          };
           break;
         case 'attachment-options-cancel':
           AttachmentMenu.close();
@@ -371,15 +388,31 @@ var Compose = (function() {
     requestAttachment: function() {
       // Mimick the DOMRequest API
       var requestProxy = {};
-      var activity = new MozActivity({
+      var activityData = {
+        type: ['image/*', 'audio/*', 'video/*']
+      };
+      var activity;
+
+      if (Settings.mmsSizeLimitation) {
+        activityData.maxFileSize = Settings.mmsSizeLimitation;
+      }
+
+      activity = new MozActivity({
         name: 'pick',
-        data: {
-          type: ['image/*', 'audio/*', 'video/*']
-        }
+        data: activityData
       });
 
       activity.onsuccess = function() {
         var result = activity.result;
+
+        if (Settings.mmsSizeLimitation &&
+          result.blob.size > Settings.mmsSizeLimitation) {
+          if (typeof requestProxy.onerror === 'function') {
+            requestProxy.onerror('file too large');
+          }
+          return;
+        }
+
         if (typeof requestProxy.onsuccess === 'function') {
           requestProxy.onsuccess(new Attachment(result.blob, {
             name: result.name,
@@ -388,9 +421,10 @@ var Compose = (function() {
         }
       };
 
+      // Re-throw Gecko-level errors
       activity.onerror = function() {
         if (typeof requestProxy.onerror === 'function') {
-          requestProxy.onerror();
+          requestProxy.onerror.apply(requestProxy, arguments);
         }
       };
 

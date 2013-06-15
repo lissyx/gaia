@@ -124,8 +124,6 @@ var Camera = {
   _photosTaken: [],
   _cameraProfile: null,
 
-  _resumeViewfinderTimer: null,
-
   _styleSheet: document.styleSheets[0],
   _orientationRule: null,
   _phoneOrientation: 0,
@@ -145,7 +143,6 @@ var Camera = {
   _previewPaused: false,
   _previewActive: false,
 
-  PREVIEW_PAUSE: 500,
   FILMSTRIP_DURATION: 5000, // show filmstrip for 5s before fading
 
   _flashState: {
@@ -256,7 +253,9 @@ var Camera = {
   init: function() {
     var self = this;
     this.setCaptureMode(this.CAMERA);
+    PerformanceTestingHelper.dispatch('initialising-camera-preview');
     this.loadCameraPreview(this._camera, function() {
+      PerformanceTestingHelper.dispatch('camera-preview-loaded');
       var files = [
         'style/filmstrip.css',
         'style/VideoPlayer.css',
@@ -363,6 +362,7 @@ var Camera = {
 
     this.previewEnabled();
     DCFApi.init();
+    PerformanceTestingHelper.dispatch('startup-path-done');
   },
 
   screenTimeout: function camera_screenTimeout() {
@@ -867,7 +867,9 @@ var Camera = {
 
   previewEnabled: function() {
     this.enableButtons();
-    setTimeout(this.initPositionUpdate.bind(this), this.PROMPT_DELAY);
+    if (!this._pendingPick) {
+      setTimeout(this.initPositionUpdate.bind(this), this.PROMPT_DELAY);
+    }
   },
 
   stopPreview: function camera_stopPreview() {
@@ -886,11 +888,6 @@ var Camera = {
     this._cameraObj.resumePreview();
     this._previewActive = true;
     this.enableButtons();
-  },
-
-  restartPreview: function camera_restartPreview() {
-    this._resumeViewfinderTimer =
-      window.setTimeout(this.resumePreview.bind(this), this.PREVIEW_PAUSE);
   },
 
   takePictureError: function camera_takePictureError() {
@@ -912,7 +909,7 @@ var Camera = {
       return;
     }
 
-    this.restartPreview();
+    this.resumePreview();
     this._addPictureToStorage(blob, function(name, absolutePath) {
       Filmstrip.addImage(absolutePath, blob);
       Filmstrip.show(Camera.FILMSTRIP_DURATION);
@@ -924,14 +921,14 @@ var Camera = {
     this._savedBlob = null;
     this.showConfirmation(false);
     this.cancelPickButton.removeAttribute('disabled');
-    this.restartPreview();
+    this.resumePreview();
   },
 
   selectPressed: function camera_selectPressed() {
     var blob = this._savedBlob;
     this._savedBlob = null;
     this.showConfirmation(false);
-    this.restartPreview();
+    this.resumePreview();
     this._addPictureToStorage(blob, function(name, absolutePath) {
       this._resizeBlobIfNeeded(blob, function(resized_blob) {
         this._pendingPick.postResult({

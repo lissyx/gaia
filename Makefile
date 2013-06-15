@@ -237,7 +237,7 @@ TEST_DIRS ?= $(CURDIR)/tests
 
 # Generate profile/
 
-profile: multilocale applications-data preferences app-makefiles test-agent-config offline contacts extensions install-xulrunner-sdk profile/settings.json create-default-data
+profile: multilocale applications-data preferences app-makefiles test-agent-config offline contacts extensions install-xulrunner-sdk profile/settings.json create-default-data profile/installed-extensions.json
 	@echo "Profile Ready: please run [b2g|firefox] -profile $(CURDIR)$(SEP)profile"
 
 LANG=POSIX # Avoiding sort order differences between OSes
@@ -316,6 +316,14 @@ offline-cache: webapp-manifests install-xulrunner-sdk
 	@echo "Populate external apps appcache"
 	@$(call run-js-command, offline-cache)
 	@echo "Done"
+
+# Get additional extensions
+profile/installed-extensions.json: build/additional-extensions.json $(wildcard .build/custom-extensions.json)
+ifeq ($(DESKTOP),1)
+	python build/additional-extensions.py --gaia-dir="$(CURDIR)"
+else ifeq ($(DEBUG),1)
+	touch profile/installed-extensions.json
+endif
 
 # Copy preload contacts to profile
 contacts:
@@ -530,8 +538,8 @@ tests: webapp-manifests offline
 
 .PHONY: common-install
 common-install:
-	@test -x $(NODEJS) || (echo "Please Install NodeJS -- (use aptitude on linux or homebrew on osx)" && exit 1 )
-	@test -x $(NPM) || (echo "Please install NPM (node package manager) -- http://npmjs.org/" && exit 1 )
+	@test -x "$(NODEJS)" || (echo "Please Install NodeJS -- (use aptitude on linux or homebrew on osx)" && exit 1 )
+	@test -x "$(NPM)" || (echo "Please install NPM (node package manager) -- http://npmjs.org/" && exit 1 )
 
 	cd $(TEST_AGENT_DIR) && npm install .
 
@@ -635,7 +643,7 @@ lint:
 	@# cubevid
 	@# crystalskull
 	@# towerjelly
-	@gjslint --nojsdoc -r apps -e 'homescreen/everything.me,sms/js/ext,pdfjs/content,pdfjs/test,email/js/ext,music/js/ext,calendar/js/ext' -x 'calendar/js/presets.js,homescreen/js/hiddenapps.js,settings/js/hiddenapps.js'
+	@gjslint --nojsdoc -r apps -e 'homescreen/everything.me,sms/js/ext,pdfjs/content,pdfjs/test,email/js/ext,music/js/ext,calendar/js/ext' -x 'calendar/js/presets.js,homescreen/js/hiddenapps.js,settings/js/hiddenapps.js,communications/contacts/config.json,communications/contacts/oauth2/js/parameters.js'
 	@gjslint --nojsdoc -r shared/js -e 'phoneNumberJS'
 
 # Erase all the indexedDB databases on the phone, so apps have to rebuild them.

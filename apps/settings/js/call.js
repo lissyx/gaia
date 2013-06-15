@@ -541,15 +541,63 @@ var Calls = (function(window, document, undefined) {
     });
   }
 
+  function updateVoiceMailItemState() {
+    var element = document.getElementById('voiceMail-desc');
+    if (!element) {
+      return;
+    }
+
+    var transaction = settings.createLock();
+    var request = transaction.get('ril.iccInfo.mbdn');
+    request.onsuccess = function() {
+       var number = request.result['ril.iccInfo.mbdn'];
+
+       if (number) {
+         element.textContent = number;
+         return;
+       }
+       var voicemail = navigator.mozVoicemail;
+       if (voicemail && voicemail.number) {
+         element.textContent = voicemail.number;
+         return;
+       }
+       element.textContent = _('voiceMail-number-notSet');
+    };
+    request.onerror = function() {};
+  }
+
+  function initVoiceMailSettings() {
+    settings.addObserver('ril.iccInfo.mbdn', function(event) {
+      updateVoiceMailItemState();
+    });
+    var transaction = settings.createLock();
+    var request = transaction.get('ril.iccInfo.mbdn');
+    request.onsuccess = function() {
+      var number = request.result['ril.iccInfo.mbdn'];
+      var voicemail = navigator.mozVoicemail;
+      // If the voicemail number has not been stored into the database yet we
+      // check whether the number is provided by the mozVoicemail API. In that
+      // case we store it into the setting database.
+      if (!number && voicemail && voicemail.number) {
+        setToSettingsDB('ril.iccInfo.mbdn', voicemail.number, null);
+        return;
+      }
+      updateVoiceMailItemState();
+    };
+    request.onerror = function() {};
+  }
+
   // Call subpanel navigation control.
   window.addEventListener('panelready', function(e) {
     // If navigation is from #root to #call panels then update UI always.
     if (e.detail.current !== '#call' ||
-        e.detail.previous.startsWith('#call-cf-')) {
+        e.detail.previous.startsWith('#call-cf-') ||
+        e.detail.previous === '#call-voiceMailSettings') {
       return;
     }
 
     if (!updatingInProgress) {
+      updateVoiceMailItemState();
       updateCallWaitingItemState(
         function hashchange_updateCallWaitingItemState() {
           updateCallForwardingSubpanels();
@@ -561,6 +609,7 @@ var Calls = (function(window, document, undefined) {
   return {
     // Startup.
     init: function calls_init() {
+      initVoiceMailSettings();
       initCallWaiting();
       initCallForwarding();
 

@@ -220,7 +220,7 @@
         <menu type="toolbar">
           <button type="submit"><span data-l10n-id="ok">OK</span></button>
         </menu>
-        <h1 data-l10n-id="wps"> Wi-Fi Protected Setup </h1>
+        <h1 data-l10n-id="wpsMessage"> Connect with WPS </h1>
       </header>
 
       <div>
@@ -327,7 +327,7 @@
             <a data-l10n-id="networkNotification">Network notification</a>
           </li>
           <li id="wps-column">
-            <small data-l10n-id="wpsDescription">Automatic wireless network configuration</small>
+            <small data-l10n-id="wpsDescription2">Automatic Wi-Fi setup</small>
             <a data-l10n-id="wpsMessage">Connect with WPS</a>
           </li>
         </ul>
@@ -485,6 +485,28 @@
       -->
     </section>
 
+    <!-- Connectivity :: Call :: Voice Mail -->
+    <section role="region" id="call-voiceMailSettings">
+      <!--
+      <header>
+        <button type="reset"><span data-l10n-id="back" class="icon icon-back">Back</span></button>
+        <menu type="toolbar">
+          <button type="submit"><span data-l10n-id="ok">OK</span></button>
+        </menu>
+        <h1 data-l10n-id="voiceMail"> Voicemail </h1>
+      </header>
+
+      <div>
+        <ul>
+          <li>
+            <p data-l10n-id="voiceMail-number">Voicemail Number</p>
+            <input type="tel" id="vm-number" data-setting="ril.iccInfo.mbdn"/>
+          </li>
+        </ul>
+      </div>
+      -->
+    </section>
+
     <!-- Connectivity :: Call -->
     <section role="region" id="call">
       <!--
@@ -495,6 +517,13 @@
 
       <div>
         <ul>
+          <li>
+            <small id="voiceMail-desc"></small>
+            <a data-href="#call-voiceMailSettings" data-l10n-id="voiceMail">Voicemail</a>
+          </li>
+        </ul>
+
+        <ul>
           <li id="menuItem-callWaiting" data-state="off">
             <label class="checkbox-label">
               <input type="checkbox" data-type="switch" data-ignore/>
@@ -504,6 +533,13 @@
               <span></span>
             </label>
             <a data-l10n-id="callWaiting">Call Waiting</a>
+          </li>
+          <li id="menuItem-cellBroadcast">
+            <label class="checkbox-label">
+              <input type="checkbox" data-type="switch" name="ril.cellbroadcast.disabled" />
+              <span></span>
+            </label>
+            <a data-l10n-id="cellBroadcast">Cell broadcast service</a>
           </li>
         </ul>
 
@@ -663,6 +699,19 @@
             <p data-l10n-id="httpProxyPort">HTTP Proxy Port</p>
             <input type="text" data-setting="ril.data.httpProxyPort" />
           </li>
+          <li>
+            <p data-l10n-id="apn-authType">Authentication</p>
+            <p class="fake-select">
+              <button class="icon icon-dialog">empty</button>
+              <select id="ril-data-authType" data-setting="ril.data.authtype">
+                <option value="notDefined" data-l10n-id="apn-authType-notDefined">Not defined</option>
+                <option value="none" data-l10n-id="apn-authType-none">None</option>
+                <option value="pap" data-l10n-id="apn-authType-pap">PAP</option>
+                <option value="chap" data-l10n-id="apn-authType-chap">CHAP</option>
+                <option value="papOrChap" data-l10n-id="apn-authType-papOrChap">PAP or CHAP</option>
+              </select>
+            </p>
+          </li>
         </ul>
       </div>
       -->
@@ -758,6 +807,19 @@
             <p data-l10n-id="mmsc">MMSC</p>
             <input type="text" x-inputmode="verbatim" data-setting="ril.mms.mmsc" />
           </li>
+          <li>
+            <p data-l10n-id="apn-authType">Authentication</p>
+            <p class="fake-select">
+              <button class="icon icon-dialog">empty</button>
+              <select id="ril-mms-authType" data-setting="ril.mms.authtype">
+                <option value="notDefined" data-l10n-id="apn-authType-notDefined">Not defined</option>
+                <option value="none" data-l10n-id="apn-authType-none">None</option>
+                <option value="pap" data-l10n-id="apn-authType-pap">PAP</option>
+                <option value="chap" data-l10n-id="apn-authType-chap">CHAP</option>
+                <option value="papOrChap" data-l10n-id="apn-authType-papOrChap">PAP or CHAP</option>
+              </select>
+            </p>
+          </li>
         </ul>
       </div>
       -->
@@ -808,6 +870,19 @@
           <li>
             <p data-l10n-id="httpProxyPort">HTTP Proxy Port</p>
             <input type="text" data-setting="ril.supl.httpProxyPort" />
+          </li>
+          <li>
+            <p data-l10n-id="apn-authType">Authentication</p>
+            <p class="fake-select">
+              <button class="icon icon-dialog">empty</button>
+              <select id="ril-supl-authType" data-setting="ril.supl.authtype">
+                <option value="notDefined" data-l10n-id="apn-authType-notDefined">Not defined</option>
+                <option value="none" data-l10n-id="apn-authType-none">None</option>
+                <option value="pap" data-l10n-id="apn-authType-pap">PAP</option>
+                <option value="chap" data-l10n-id="apn-authType-chap">CHAP</option>
+                <option value="papOrChap" data-l10n-id="apn-authType-papOrChap">PAP or CHAP</option>
+              </select>
+            </p>
           </li>
         </ul>
       </div>
@@ -1246,13 +1321,6 @@
               <span></span>
             </label>
             <a data-l10n-id="unlock-screen">Unlock Screen</a>
-          </li>
-          <li>
-            <label>
-              <input type="checkbox" name="bootshutdown.sound.enabled" checked />
-              <span></span>
-            </label>
-            <a data-l10n-id="boot-and-shutdown">Boot and Shutdown</a>
           </li>
         </ul>
       </div>
@@ -2720,7 +2788,7 @@
             <a id="menuItem-gps" class="menu-item" data-l10n-id="geolocation">Geolocation</a>
           </li>
           <li>
-            <small id="wifi-desc" class="menu-item-desc" data-l10n-id="fullStatus-disconnected">offline</small>
+            <small id="wifi-desc" class="menu-item-desc"></small>
             <a id="menuItem-wifi" class="menu-item" href="#wifi" data-l10n-id="wifi">Wi-Fi</a>
           </li>
           <li id="call-settings">
