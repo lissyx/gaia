@@ -29,7 +29,7 @@ GAIA_DOMAIN?=gaiamobile.org
 DEBUG?=0
 PRODUCTION?=0
 GAIA_OPTIMIZE?=0
-HIDPI?=0
+GAIA_DEV_PIXELS_PER_PX?=1
 DOGFOOD?=0
 TEST_AGENT_PORT?=8789
 
@@ -237,7 +237,7 @@ TEST_DIRS ?= $(CURDIR)/tests
 
 # Generate profile/
 
-profile: multilocale applications-data preferences app-makefiles test-agent-config offline contacts extensions install-xulrunner-sdk profile/settings.json create-default-data profile/installed-extensions.json
+profile: multilocale applications-data preferences app-makefiles test-agent-config offline contacts extensions install-xulrunner-sdk install-git-hook profile/settings.json create-default-data profile/installed-extensions.json
 	@echo "Profile Ready: please run [b2g|firefox] -profile $(CURDIR)$(SEP)profile"
 
 LANG=POSIX # Avoiding sort order differences between OSes
@@ -365,7 +365,7 @@ reference-workload-x-heavy:
 
 # The install-xulrunner target arranges to get xulrunner downloaded and sets up
 # some commands for invoking it. But it is platform dependent
-XULRUNNER_SDK_URL=http://ftp.mozilla.org/pub/mozilla.org/xulrunner/nightly/2012/09/2012-09-20-03-05-43-mozilla-central/xulrunner-18.0a1.en-US.
+XULRUNNER_SDK_URL=http://ftp.mozilla.org/pub/mozilla.org/xulrunner/nightly/2013/06/2013-06-11-03-11-40-mozilla-central/xulrunner-24.0a1.en-US.
 
 ifeq ($(SYS),Darwin)
 # For mac we have the xulrunner-sdk so check for this directory
@@ -378,8 +378,8 @@ else
 # 64-bit
 XULRUNNER_SDK_DOWNLOAD=$(XULRUNNER_MAC_SDK_URL)x86_64.sdk.tar.bz2
 endif
-XULRUNNERSDK=./xulrunner-sdk/bin/run-mozilla.sh
-XPCSHELLSDK=./xulrunner-sdk/bin/xpcshell
+XULRUNNERSDK=./xulrunner-sdk/bin/XUL.framework/Versions/Current/run-mozilla.sh
+XPCSHELLSDK=./xulrunner-sdk/bin/XUL.framework/Versions/Current/xpcshell
 
 else ifeq ($(findstring MINGW32,$(SYS)), MINGW32)
 # For windows we only have one binary
@@ -430,7 +430,7 @@ define run-js-command
 	const BUILD_APP_NAME = "$(BUILD_APP_NAME)";                                 \
 	const PRODUCTION = "$(PRODUCTION)";                                         \
 	const GAIA_OPTIMIZE = "$(GAIA_OPTIMIZE)";                                   \
-	const HIDPI = "$(HIDPI)";                                                   \
+	const GAIA_DEV_PIXELS_PER_PX = "$(GAIA_DEV_PIXELS_PER_PX)";                 \
 	const DOGFOOD = "$(DOGFOOD)";                                               \
 	const OFFICIAL = "$(MOZILLA_OFFICIAL)";                                     \
 	const GAIA_DEFAULT_LOCALE = "$(GAIA_DEFAULT_LOCALE)";                       \
@@ -639,12 +639,9 @@ endif
 
 # Lint apps
 lint:
-	@# ignore lint on:
-	@# cubevid
-	@# crystalskull
-	@# towerjelly
-	@gjslint --nojsdoc -r apps -e 'homescreen/everything.me,sms/js/ext,pdfjs/content,pdfjs/test,email/js/ext,music/js/ext,calendar/js/ext' -x 'calendar/js/presets.js,homescreen/js/hiddenapps.js,settings/js/hiddenapps.js,communications/contacts/config.json,communications/contacts/oauth2/js/parameters.js'
-	@gjslint --nojsdoc -r shared/js -e 'phoneNumberJS'
+	# --disable 210,217,220,225 replaces --nojsdoc because it's broken in closure-linter 2.3.10
+	# http://code.google.com/p/closure-linter/issues/detail?id=64
+	gjslint --disable 210,217,220,225 -r apps -r shared -e '$(shell cat ./build/lint-excluded-dirs.list)' -x '$(shell cat ./build/lint-excluded-files.list)'
 
 # Erase all the indexedDB databases on the phone, so apps have to rebuild them.
 delete-databases:
@@ -759,7 +756,7 @@ SETTINGS_ARG += --enable-debugger
 endif
 
 ifeq ($(DEBUG),1)
-SETTINGS_ARG += --homescreen=http://homescreen.$(GAIA_DOMAIN):$(GAIA_PORT)/manifest.webapp
+SETTINGS_ARG += --homescreen=http://homescreen.$(GAIA_DOMAIN)$(GAIA_PORT)/manifest.webapp
 endif
 
 # We want the console to be disabled for device builds using the user variant.
@@ -768,8 +765,8 @@ SETTINGS_ARG += --console
 endif
 
 profile/settings.json:
-ifeq ($(HIDPI),1)
-	python build/settings.py $(SETTINGS_ARG) --locale $(GAIA_DEFAULT_LOCALE) --homescreen $(SCHEME)homescreen.$(GAIA_DOMAIN)$(GAIA_PORT)/manifest.webapp --ftu $(SCHEME)communications.$(GAIA_DOMAIN)$(GAIA_PORT)/manifest.webapp --wallpaper build/wallpaper@2x.jpg --override $(SETTINGS_PATH) --output $@
+ifneq ($(GAIA_DEV_PIXELS_PER_PX),1)
+	python build/settings.py $(SETTINGS_ARG) --locale $(GAIA_DEFAULT_LOCALE) --homescreen $(SCHEME)homescreen.$(GAIA_DOMAIN)$(GAIA_PORT)/manifest.webapp --ftu $(SCHEME)communications.$(GAIA_DOMAIN)$(GAIA_PORT)/manifest.webapp --wallpaper build/wallpaper@$(GAIA_DEV_PIXELS_PER_PX)x.jpg --override $(SETTINGS_PATH) --output $@
 else
 	python build/settings.py $(SETTINGS_ARG) --locale $(GAIA_DEFAULT_LOCALE) --homescreen $(SCHEME)homescreen.$(GAIA_DOMAIN)$(GAIA_PORT)/manifest.webapp --ftu $(SCHEME)communications.$(GAIA_DOMAIN)$(GAIA_PORT)/manifest.webapp --wallpaper build/wallpaper.jpg --override $(SETTINGS_PATH) --output $@
 endif
@@ -863,3 +860,5 @@ clean:
 really-clean: clean
 	rm -rf xulrunner-sdk .xulrunner-url
 
+install-git-hook:
+	test -d .git && cp tools/pre-commit .git/hooks/pre-commit || true

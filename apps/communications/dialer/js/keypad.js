@@ -1,6 +1,7 @@
 'use strict';
 
 var kFontStep = 4;
+var loader = LazyLoader;
 
 // Frequencies coming from http://en.wikipedia.org/wiki/Telephone_keypad
 var gTonesFrequencies = {
@@ -164,7 +165,7 @@ var KeypadManager = {
                                                 this.hangUpCallFromKeypad);
     }
 
-    TonePlayer.init(this._onCall ? 'telephony' : 'ringer');
+    TonePlayer.init(this._onCall ? 'telephony' : 'normal');
 
     this.render();
     loader.load(['/shared/style/action_menu.css',

@@ -329,21 +329,9 @@ navigator.mozL10n.ready(function bluetoothSettings() {
     // when DefaultAdapter is ready.
     function initial() {
       // Bind message handler for incoming pairing requests
-      navigator.mozSetMessageHandler('bluetooth-requestconfirmation',
-        function bt_gotConfirmationMessage(message) {
-          onRequestPairing(message, 'confirmation');
-        }
-      );
-
-      navigator.mozSetMessageHandler('bluetooth-requestpincode',
-        function bt_gotPincodeMessage(message) {
-          onRequestPairing(message, 'pincode');
-        }
-      );
-
-      navigator.mozSetMessageHandler('bluetooth-requestpasskey',
-        function bt_gotPasskeyMessage(message) {
-          onRequestPairing(message, 'passkey');
+      navigator.mozSetMessageHandler('bluetooth-pairing-request',
+        function bt_gotPairingRequestMessage(message) {
+          onRequestPairing(message);
         }
       );
 
@@ -381,7 +369,16 @@ navigator.mozL10n.ready(function bluetoothSettings() {
           if (connected) {
             showDeviceConnected(device.address, true);
           } else {
-            setDeviceConnect(device);
+            // If we restore connection right after Bleutooth is enabled, the
+            // failure rate would be higher than delaying for several seconds.
+            // That's because most Bluetooth headsets are smart enough and
+            // would try to reconnect with us once they found the connection
+            // is dropped, and that may fail since two connections happen at
+            // the same time.
+            stopDiscovery();
+            setTimeout(function() {
+              setDeviceConnect(device);
+            }, 5000);
           }
         });
       });
@@ -492,9 +489,20 @@ navigator.mozL10n.ready(function bluetoothSettings() {
     // callback function when an avaliable device found
     function onDeviceFound(evt) {
       var device = evt.device;
-      // ignore duplicate and paired device
-      if (openList.index[device.address] || pairList.index[device.address])
+      // Ignore duplicate and paired device. Update the name if needed.
+      var existingDevice = openList.index[device.address] ||
+        pairList.index[device.address];
+      if (existingDevice) {
+        var existingItem = existingDevice[1];
+        if (device.name && existingItem) {
+          var deviceName = existingItem.querySelector('a');
+          if (deviceName) {
+            deviceName.dataset.l10nId = '';
+            deviceName.textContent = device.name;
+          }
+        }
         return;
+      }
 
       var aItem = newListItem(device, 'device-status-tap-connect');
 
@@ -673,7 +681,7 @@ navigator.mozL10n.ready(function bluetoothSettings() {
       small.dataset.l10nId = (connected) ? 'device-status-connected' : '';
     }
 
-    function onRequestPairing(evt, method) {
+    function onRequestPairing(evt) {
       var showPairView = function bt_showPairView() {
         var device = {
           address: evt.address,
@@ -686,6 +694,7 @@ navigator.mozL10n.ready(function bluetoothSettings() {
           pairingMode = 'passive';
         }
         var passkey = evt.passkey || null;
+        var method = evt.method;
         var protocol = window.location.protocol;
         var host = window.location.host;
         childWindow = window.open(protocol + '//' + host + '/onpair.html',
