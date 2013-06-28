@@ -60,14 +60,22 @@ suite('thread_ui.js >', function() {
 
   var mocksHelper = mocksHelperForThreadUI;
   var testImageBlob;
+  var oversizedImageBlob;
   var testAudioBlob;
   var testVideoBlob;
 
   function mockAttachment(size) {
     return new MockAttachment({
-      type: 'image/jpeg',
+      type: 'video/ogg',
       size: size
-    }, 'kitten-450.jpg');
+    }, 'video.ogv');
+  }
+
+  function mockImgAttachment(isOversized) {
+    var attachment = isOversized ?
+      new MockAttachment(oversizedImageBlob, 'testOversized.jpg') :
+      new MockAttachment(testImageBlob, 'test.jpg');
+    return attachment;
   }
 
   suiteSetup(function(done) {
@@ -93,6 +101,9 @@ suite('thread_ui.js >', function() {
     }
     getAsset('/test/unit/media/kitten-450.jpg', function(blob) {
       testImageBlob = blob;
+    });
+    getAsset('/test/unit/media/IMG_0554.jpg', function(blob) {
+      oversizedImageBlob = blob;
     });
     getAsset('/test/unit/media/audio.oga', function(blob) {
       testAudioBlob = blob;
@@ -255,6 +266,38 @@ suite('thread_ui.js >', function() {
         assert.isFalse(sendButton.disabled);
         Compose.append('Hola');
 
+        assert.isTrue(sendButton.disabled);
+      });
+
+      test('When adding an image that is under the limitation, button ' +
+           'should be enabled right after appended',
+        function() {
+
+        ThreadUI.recipients.add({
+          number: '999'
+        });
+
+        Compose.append(mockImgAttachment());
+        assert.isFalse(sendButton.disabled);
+      });
+
+      test('When adding an oversized image, button should be disabled while ' +
+           'resizing and enabled when resize complete',
+        function(done) {
+
+        ThreadUI.recipients.add({
+          number: '999'
+        });
+
+        function onInput() {
+          if (!Compose.isResizing) {
+            Compose.off('input', onInput);
+            assert.isFalse(sendButton.disabled);
+            done();
+          }
+        };
+        Compose.on('input', onInput);
+        Compose.append(mockImgAttachment(true));
         assert.isTrue(sendButton.disabled);
       });
     });
@@ -778,6 +821,13 @@ suite('thread_ui.js >', function() {
             done();
           });
         });
+      });
+    });
+
+    suite('onDeliverySuccess >', function() {
+      test('adds the "delivered" class to the message element', function() {
+        ThreadUI.onDeliverySuccess(this.fakeMessage);
+        assert.isTrue(this.container.classList.contains('delivered'));
       });
     });
   });
@@ -1607,7 +1657,7 @@ suite('thread_ui.js >', function() {
     });
   });
 
-  suite('Header Actions', function() {
+  suite('Header Actions/Display', function() {
     setup(function() {
       window.location.hash = '';
       MockActivityPicker.call.mSetup();
@@ -1620,156 +1670,260 @@ suite('thread_ui.js >', function() {
       MockActivityPicker.call.mTeardown();
       MockOptionMenu.mTeardown();
     });
+    // See: utils_test.js
+    // Utils.getCarrierTag
+    //
+    suite('Single participant', function() {
 
-    test('Single participant: Contact Options (known)', function() {
+      suite('Options', function() {
+        test('Contact Options (known)', function() {
 
-      Threads.set(1, {
-        participants: ['999']
+          Threads.set(1, {
+            participants: ['999']
+          });
+
+          window.location.hash = '#thread=1';
+
+          ThreadUI.headerText.dataset.isContact = true;
+          ThreadUI.headerText.dataset.number = '999';
+
+          ThreadUI.onHeaderActivation();
+
+          var calls = MockOptionMenu.calls;
+
+          assert.equal(calls.length, 1);
+          assert.equal(calls[0].section, '999');
+          assert.equal(calls[0].items.length, 3);
+          assert.equal(typeof calls[0].complete, 'function');
+        });
+
+        test('Contact Options (unknown)', function() {
+
+          Threads.set(1, {
+            participants: ['777']
+          });
+
+          window.location.hash = '#thread=1';
+
+          ThreadUI.headerText.dataset.isContact = false;
+          ThreadUI.headerText.dataset.number = '777';
+
+          ThreadUI.onHeaderActivation();
+
+          var calls = MockOptionMenu.calls;
+
+          assert.equal(calls.length, 1);
+          assert.equal(calls[0].header, '777');
+          assert.equal(calls[0].items.length, 5);
+          assert.equal(typeof calls[0].complete, 'function');
+        });
       });
 
-      window.location.hash = '#thread=1';
+      suite('Carrier Tag', function() {
+        test('Carrier Tag (non empty string)', function(done) {
 
-      ThreadUI.headerText.dataset.isContact = true;
-      ThreadUI.headerText.dataset.number = '999';
+          Threads.set(1, {
+            participants: ['+12125559999']
+          });
 
-      ThreadUI.onHeaderActivation();
+          window.location.hash = '#thread=1';
 
-      var calls = MockOptionMenu.calls;
+          this.sinon.stub(MockUtils, 'getCarrierTag', function() {
+            return 'non empty string';
+          });
 
-      assert.equal(calls.length, 1);
-      assert.equal(calls[0].section, '999');
-      assert.equal(calls[0].items.length, 3);
-      assert.equal(typeof calls[0].complete, 'function');
+          this.sinon.stub(
+            MockContacts, 'findByPhoneNumber', function(phone, fn) {
+
+            fn([new MockContact()]);
+
+            var threadMessages = document.getElementById('thread-messages');
+
+            assert.isTrue(threadMessages.classList.contains('has-carrier'));
+            done();
+          });
+
+          ThreadUI.updateHeaderData();
+        });
+
+        test('Carrier Tag (empty string)', function(done) {
+
+          Threads.set(1, {
+            participants: ['+12125559999']
+          });
+
+          window.location.hash = '#thread=1';
+
+          this.sinon.stub(MockUtils, 'getCarrierTag', function() {
+            return '';
+          });
+
+          this.sinon.stub(
+            MockContacts, 'findByPhoneNumber', function(phone, fn) {
+
+            fn([new MockContact()]);
+
+            var threadMessages = document.getElementById('thread-messages');
+
+            assert.isFalse(threadMessages.classList.contains('has-carrier'));
+
+            done();
+          });
+
+          ThreadUI.updateHeaderData();
+        });
+      });
     });
 
-    test('Single participant: Contact Options (unknown)', function() {
-
-      Threads.set(1, {
-        participants: ['777']
+    suite('Multi participant', function() {
+      setup(function() {
+        window.location.hash = '';
+        MockActivityPicker.call.mSetup();
+        MockOptionMenu.mSetup();
       });
 
-      window.location.hash = '#thread=1';
-
-      ThreadUI.headerText.dataset.isContact = false;
-      ThreadUI.headerText.dataset.number = '777';
-
-      ThreadUI.onHeaderActivation();
-
-      var calls = MockOptionMenu.calls;
-
-      assert.equal(calls.length, 1);
-      assert.equal(calls[0].header, '777');
-      assert.equal(calls[0].items.length, 5);
-      assert.equal(typeof calls[0].complete, 'function');
-    });
-
-    test('Multi participant: DOES NOT Invoke Activities', function() {
-
-      Threads.set(1, {
-        participants: ['999', '888']
+      teardown(function() {
+        Threads.delete(1);
+        window.location.hash = '';
+        MockActivityPicker.call.mTeardown();
+        MockOptionMenu.mTeardown();
       });
 
-      window.location.hash = '#thread=1';
+      suite('Options', function() {
 
-      ThreadUI.headerText.dataset.isContact = true;
-      ThreadUI.headerText.dataset.number = '999';
+        test('DOES NOT Invoke Activities', function() {
 
-      ThreadUI.onHeaderActivation();
+          Threads.set(1, {
+            participants: ['999', '888']
+          });
 
-      assert.equal(MockActivityPicker.call.called, false);
-      assert.equal(MockActivityPicker.call.calledWith, null);
-    });
+          window.location.hash = '#thread=1';
 
-    test('Multi participant: DOES NOT Invoke Options', function() {
+          ThreadUI.headerText.dataset.isContact = true;
+          ThreadUI.headerText.dataset.number = '999';
 
-      Threads.set(1, {
-        participants: ['999', '888']
+          ThreadUI.onHeaderActivation();
+
+          assert.equal(MockActivityPicker.call.called, false);
+          assert.equal(MockActivityPicker.call.calledWith, null);
+        });
+
+        test('DOES NOT Invoke Options', function() {
+
+          Threads.set(1, {
+            participants: ['999', '888']
+          });
+
+          window.location.hash = '#thread=1';
+
+          ThreadUI.headerText.dataset.isContact = true;
+          ThreadUI.headerText.dataset.number = '999';
+
+          ThreadUI.onHeaderActivation();
+
+          assert.equal(MockOptionMenu.calls.length, 0);
+        });
+
+        test('Moves to Group View', function(done) {
+          Threads.set(1, {
+            participants: ['999', '888']
+          });
+
+          // Change to #thread=n
+          window.onhashchange = function() {
+            // Change to #group-view (per ThreadUI.onHeaderActivation())
+            window.onhashchange = function() {
+              assert.equal(window.location.hash, '#group-view');
+              assert.equal(
+                ThreadUI.headerText.textContent, 'participant{"n":2}'
+              );
+              // View should not go back to thread view when header is
+              // activated in group-view
+              ThreadUI.onHeaderActivation();
+              assert.equal(window.location.hash, '#group-view');
+              window.onhashchange = null;
+              done();
+            };
+
+            ThreadUI.onHeaderActivation();
+            ThreadUI.groupView();
+          };
+
+          window.location.hash = '#thread=1';
+        });
+
+        test('Correctly Displayed', function() {
+          var contacts = {
+            a: new MockContact(),
+            b: new MockContact()
+          };
+
+          // Truncate the tel record arrays; there should
+          // only be one when renderContact does its
+          // loop and comparison of dialiables
+          contacts.a.tel.length = 1;
+          contacts.b.tel.length = 1;
+
+          // Set to our "participants"
+          contacts.a.tel[0].value = '999';
+          contacts.b.tel[0].value = '888';
+
+          // "input" value represents the participant entry value
+          // that would be provided in ThreadUI.groupView()
+          ThreadUI.renderContact({
+            contact: contacts.a,
+            input: '999',
+            target: ThreadUI.participantsList,
+            isContact: true,
+            isSuggestion: false
+          });
+
+          ThreadUI.renderContact({
+            contact: contacts.b,
+            input: '888',
+            target: ThreadUI.participantsList,
+            isContact: true,
+            isSuggestion: false
+          });
+
+          assert.equal(
+            ThreadUI.participantsList.children.length, 2
+          );
+        });
+
+        test('Reset Group View', function() {
+          var list = ThreadUI.participants.firstElementChild;
+
+          assert.equal(list.children.length, 0);
+
+          list.innerHTML = '<li></li><li></li><li></li>';
+
+          assert.equal(list.children.length, 3);
+
+          ThreadUI.groupView.reset();
+
+          assert.equal(list.children.length, 0);
+        });
       });
 
-      window.location.hash = '#thread=1';
+      suite('Carrier Tag', function() {
+        test('Carrier Tag (empty string)', function() {
 
-      ThreadUI.headerText.dataset.isContact = true;
-      ThreadUI.headerText.dataset.number = '999';
+          Threads.set(1, {
+            participants: ['999', '888']
+          });
 
-      ThreadUI.onHeaderActivation();
+          window.location.hash = '#thread=1';
+          ThreadUI.updateHeaderData();
 
-      assert.equal(MockOptionMenu.calls.length, 0);
-    });
+          var threadMessages = document.getElementById('thread-messages');
 
-    test('Multi participant: Moves to Group View', function(done) {
-      Threads.set(1, {
-        participants: ['999', '888']
+          assert.isFalse(threadMessages.classList.contains('has-carrier'));
+        });
+
       });
-
-      // Change to #thread=n
-      window.onhashchange = function() {
-        // Change to #group-view (per ThreadUI.onHeaderActivation())
-        window.onhashchange = function() {
-          assert.equal(window.location.hash, '#group-view');
-          assert.equal(ThreadUI.headerText.textContent, 'participant{"n":2}');
-          window.onhashchange = null;
-          done();
-        };
-
-        ThreadUI.onHeaderActivation();
-        ThreadUI.groupView();
-      };
-
-      window.location.hash = '#thread=1';
     });
 
-    test('Multi participant: Correctly Displayed', function() {
-      var contacts = {
-        a: new MockContact(),
-        b: new MockContact()
-      };
-
-      // Truncate the tel record arrays; there should
-      // only be one when renderContact does its
-      // loop and comparison of dialiables
-      contacts.a.tel.length = 1;
-      contacts.b.tel.length = 1;
-
-      // Set to our "participants"
-      contacts.a.tel[0].value = '999';
-      contacts.b.tel[0].value = '888';
-
-      // "input" value represents the participant entry value
-      // that would be provided in ThreadUI.groupView()
-      ThreadUI.renderContact({
-        contact: contacts.a,
-        input: '999',
-        target: ThreadUI.participantsList,
-        isContact: true,
-        isSuggestion: false
-      });
-
-      ThreadUI.renderContact({
-        contact: contacts.b,
-        input: '888',
-        target: ThreadUI.participantsList,
-        isContact: true,
-        isSuggestion: false
-      });
-
-      assert.equal(
-        ThreadUI.participantsList.children.length, 2
-      );
-    });
-
-    test('Multi participant: Reset Group View', function() {
-      var list = ThreadUI.participants.firstElementChild;
-
-      assert.equal(list.children.length, 0);
-
-      list.innerHTML = '<li></li><li></li><li></li>';
-
-      assert.equal(list.children.length, 3);
-
-      ThreadUI.groupView.reset();
-
-      assert.equal(list.children.length, 0);
-    });
   });
 
   suite('Sending Behavior (onSendClick)', function() {

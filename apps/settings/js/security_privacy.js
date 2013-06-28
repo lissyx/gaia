@@ -30,9 +30,7 @@ var Security = {
     if (!mobileConnection)
       return;
 
-    var icc = navigator.mozIccManager ||
-              navigator.mozMobileConnection.icc;
-    if (!icc)
+    if (!IccHelper.enabled)
       return;
 
     var simSecurityDesc = document.getElementById('simCardLock-desc');
