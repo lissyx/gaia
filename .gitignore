@@ -49,3 +49,8 @@ manifest.appcache
 
 /backups/
 /distribution/
+
+/.cproject
+/.project
+/.settings
+
