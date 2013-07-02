@@ -8,9 +8,6 @@
     <!-- Debug/DUMP method support -->
     <script defer src="/shared/js/dump.js"></script>
 
-    <!-- multi-resolution support -->
-    <link rel="stylesheet" href="/shared/style/responsive.css">
-
     <!-- Common style -->
     <link rel="stylesheet" type="text/css" href="shared/style/headers.css"/>
     <link rel="stylesheet" type="text/css" href="shared/style/switches.css"/>
@@ -1091,6 +1088,17 @@
           <button data-l10n-id="device-option-disconnect" id="disconnect-option">Disconnect</button>
           <button data-l10n-id="device-option-unpair" id="unpair-option">Unpair</button>
           <button data-l10n-id="cancel">Cancel</button>
+        </menu>
+      </form>
+
+      <form role="dialog" data-type="confirm" id="unpair-device" hidden>
+        <section>
+          <h1>Confirmation</h1>
+          <p data-l10n-id="device-option-unpair-device">Unpair Device?</p>
+        </section>
+        <menu>
+          <button data-l10n-id="cancel">Cancel</button>
+          <button data-l10n-id="device-option-confirm" id="confirm-option" class="danger">Confirm</button>
         </menu>
       </form>
 
@@ -2602,7 +2610,7 @@
       </div>
       <form data-type="confirm" role="dialog" id="default-location-popup-container" hidden>
         <section>
-          <p>Changing the default media storage volume will effect where photos, videos, downloads and other media will be saved to by default. Existing data will remain in its current location.</p>
+          <p data-l10n-id="change-default-location-confirm">Changing the default media storage volume will effect where photos, videos, downloads and other media will be saved to by default. Existing data will remain in its current location.</p>
         </section>
         <menu>
           <button id="default-location-cancel-btn">Cancel</button>
