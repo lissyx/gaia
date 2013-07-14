@@ -1,5 +1,6 @@
 require('/shared/js/lazy_loader.js');
 require('/shared/js/text_normalizer.js');
+require('/shared/js/tag_visibility_monitor.js');
 requireApp('communications/contacts/test/unit/mock_asyncstorage.js');
 requireApp('communications/contacts/js/search.js');
 requireApp('communications/contacts/js/contacts_list.js');
@@ -119,10 +120,22 @@ suite('Render contacts list', function() {
       // Loading a new list removes some DOM nodes.  Update our references.
       updateDomReferences();
 
-      callback();
+      // Issue the callback via setTimeout() to appease the mocha gods.
+      // Exceptions and errors are properly reported from setTimeout() async
+      // context, but seem to be ignored from other DOM callbacks like
+      // we are using here.
+      window.setTimeout(callback);
     };
     window.addEventListener('listRendered', handler);
     list.load(values);
+  }
+
+  // Poor man's way of delaying until an element is onscreen as determined
+  // by the visibility monitor.
+  function doOnscreen(list, element, callback) {
+    element.scrollIntoView(true);
+    // XXX Replace this with a true callback from monitor or list
+    window.setTimeout(callback);
   }
 
   function assertNoGroup(title, container) {
@@ -346,7 +359,8 @@ suite('Render contacts list', function() {
     subject.setOrderByLastName(true);
     subject.init(list);
 
-    contacts.Search.init(document.getElementById('view-contacts-list'));
+    contacts.Search.load();
+    subject.initSearch();
   });
 
   suiteTeardown(function() {
@@ -754,6 +768,39 @@ suite('Render contacts list', function() {
       done();
     });
 
+    // This test verifies that we properly render contact list elements
+    // for both its main group and favorites group.  This requires the
+    // visibility monitor to fire an onscreen event for each group element
+    // separately.  See bug 891984 for a previous error in this logic.
+    test('load and render many favorites', function(done) {
+      var names = ['AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI'];
+      var list = [];
+      for (var i = 0; i < names.length; ++i) {
+        var name = names[i];
+        var c = new MockContactAllFields();
+        c.id = 'mock-' + i;
+        c.familyName = [name];
+        c.category = ['favorite'];
+        list.push(c);
+      }
+      doLoad(subject, list, function() {
+        var favList = assertGroup(groupFav, containerFav, names.length);
+        var lastFav = favList[favList.length - 1];
+        doOnscreen(subject, lastFav, function() {
+          assert.equal(lastFav.dataset.rendered, 'true',
+                       'contact should be rendered in "favorites" list');
+
+          var aList = assertGroup(groupA, containerA, names.length);
+          var lastA = aList[aList.length - 1];
+          doOnscreen(subject, lastA, function() {
+            assert.equal(lastA.dataset.rendered, 'true',
+                         'contact should be rendered in "A" list');
+            done();
+          });
+        });
+      });
+    });
+
     test('reseting the dom of the contacts list', function(done) {
       var newList = new MockContactsList();
       doLoad(subject, newList, function() {
@@ -808,26 +855,31 @@ suite('Render contacts list', function() {
         var selectorContact1 = 'li[data-uuid = "1"]';
         var contact = container.querySelector(selectorContact1);
 
-        var img = contact.querySelector('img');
+        doOnscreen(subject, contact, function() {
+          var img = contact.querySelector('img');
 
-        assert.equal(img.dataset.src, 'test.png',
-                      'At the begining contact 1 img === "test.png"');
-        var prevUpdated = contact.dataset.updated;
+          assert.equal(img.dataset.src, 'test.png',
+                        'At the begining contact 1 img === "test.png"');
+          var prevUpdated = contact.dataset.updated;
 
-        mockContacts[0].updated = new Date(); // This is the key!
-        mockContacts[0].photo = ['one.png'];
-        doLoad(subject, mockContacts, function() {
-          assertTotal(3, 3);
+          mockContacts[0].updated = new Date(); // This is the key!
+          mockContacts[0].photo = ['one.png'];
+          doLoad(subject, mockContacts, function() {
+            assertTotal(3, 3);
 
-          contact = container.querySelector(selectorContact1);
-          img = contact.querySelector('img');
+            contact = container.querySelector(selectorContact1);
 
-          assert.equal(img.dataset.src, 'one.png',
-                        'After updating contact 1 img === "one.png"');
+            doOnscreen(subject, contact, function() {
+              img = contact.querySelector('img');
 
-          assert.isTrue(prevUpdated < contact.dataset.updated,
-                        'Updated date is wrong. It should be changed!');
-          done();
+              assert.equal(img.dataset.src, 'one.png',
+                            'After updating contact 1 img === "one.png"');
+
+              assert.isTrue(prevUpdated < contact.dataset.updated,
+                            'Updated date is wrong. It should be changed!');
+              done();
+            });
+          });
         });
       });
     });
@@ -840,18 +892,23 @@ suite('Render contacts list', function() {
         var selectorContact1 = 'li[data-uuid = "1"]';
         var contact = container.querySelector(selectorContact1);
 
-        var img = contact.querySelector('img');
-        assert.equal(img.dataset.src, 'test.png',
-                      'At the begining contact 1 img === "test.png"');
-
-        doLoad(subject, mockContacts, function() {
-          assertTotal(3, 3);
-
-          contact = container.querySelector(selectorContact1);
-          img = contact.querySelector('img');
+        doOnscreen(subject, contact, function() {
+          var img = contact.querySelector('img');
           assert.equal(img.dataset.src, 'test.png',
                         'At the begining contact 1 img === "test.png"');
-          done();
+
+          doLoad(subject, mockContacts, function() {
+            assertTotal(3, 3);
+
+            contact = container.querySelector(selectorContact1);
+
+            doOnscreen(subject, contact, function() {
+              img = contact.querySelector('img');
+              assert.equal(img.dataset.src, 'test.png',
+                            'At the begining contact 1 img === "test.png"');
+              done();
+            });
+          });
         });
       });
     });
@@ -909,7 +966,6 @@ suite('Render contacts list', function() {
 
     test('check empty search', function(done) {
       mockContacts = new MockContactsList();
-      subject.resetSearch();
 
       doLoad(subject, mockContacts, function() {
         searchBox.value = 'YYY';
@@ -947,8 +1003,6 @@ suite('Render contacts list', function() {
       var contactIndex = Math.floor(Math.random() * mockContacts.length);
       var contact = mockContacts[contactIndex];
 
-      subject.resetSearch();
-
       doLoad(subject, mockContacts, function() {
         searchBox.value = '(';
         contacts.Search.search(function search_finished() {
@@ -965,8 +1019,6 @@ suite('Render contacts list', function() {
       var contact = mockContacts[contactIndex];
       mockContacts[contactIndex].givenName[0] =
         '(' + contact.givenName[0] + ')';
-
-      subject.resetSearch();
 
       doLoad(subject, mockContacts, function() {
         contacts.List.initSearch(function onInit() {
@@ -994,8 +1046,6 @@ suite('Render contacts list', function() {
       for (var i = 0, len = givenName.length; i < len; i++)
         accentedCharName +=
           inChars[outChars.indexOf(givenName[i])] || givenName[i];
-
-      subject.resetSearch();
 
       doLoad(subject, mockContacts, function() {
         contacts.List.initSearch(function onInit() {
@@ -1026,8 +1076,6 @@ suite('Render contacts list', function() {
           inChars[outChars.indexOf(givenName[i])] || givenName[i];
 
       mockContacts[contactIndex].givenName[0] = accentedCharName;
-
-      subject.resetSearch();
 
       doLoad(subject, mockContacts, function() {
         contacts.List.initSearch(function onInit() {
@@ -1086,59 +1134,101 @@ suite('Render contacts list', function() {
       });
     });
 
+    test('Order string lazy calculated', function(done) {
+      mockContacts = new MockContactsList();
+      doLoad(subject, mockContacts, function() {
+        // The nodes are there
+        var nodes = list.querySelectorAll('li');
+        assert.length(nodes, 3);
+
+        // But no order strings are rendered initially.  This work is deferred
+        nodes = list.querySelectorAll('li[data-order]');
+        assert.length(nodes, 0);
+
+        // Adding a contact via refresh() should result in the order string
+        // being calculated.
+        var c = new MockContactAllFields();
+        c.id = 99;
+        c.familyName = ['AZ'];
+        c.category = [];
+        subject.refresh(c);
+
+        nodes = list.querySelectorAll('li');
+        assert.length(nodes, 4);
+
+        nodes = list.querySelectorAll('li[data-order]');
+        assert.length(nodes, 2);
+
+        done();
+      });
+    });
+
     test('Order by lastname', function(done) {
       resetDom(document);
       subject.init(list);
 
       mockContacts = new MockContactsList();
-      doLoad(subject, mockContacts, function() {
-        var names = document.querySelectorAll('[data-order]');
 
-        assert.length(names, mockContacts.length);
-        for (var i = 0; i < names.length; i++) {
-          var printed = names[i];
-          var mockContact = mockContacts[i];
-          var expected = getStringToBeOrdered(mockContact, true);
-          assert.equal(printed.dataset['order'],
-            Normalizer.escapeHTML(expected, true));
+      // Use refresh() to load list since it forces order strings to be
+      // calculated and used for sorting.
+      for (var i = 0; i < mockContacts.length; ++i) {
+        subject.refresh(mockContacts[i]);
+      }
 
-          // Check as well the correct highlight
-          // familyName to be in bold
-          var highlight =
-            Normalizer.escapeHTML(mockContact.givenName[0], true) +
-            ' <strong>' +
-              Normalizer.escapeHTML(mockContact.familyName[0], true) +
-            '</strong>';
-          assert.isTrue(printed.innerHTML.indexOf(highlight) == 0);
-        }
-        done();
-      });
+      var nodes = document.querySelectorAll('li[data-order]');
+
+      assert.length(nodes, mockContacts.length);
+      for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i];
+        var mockContact = mockContacts[i];
+        var expected = getStringToBeOrdered(mockContact, true);
+        assert.equal(node.dataset['order'],
+          Normalizer.escapeHTML(expected, true));
+
+        var printed = node.querySelector('p');
+
+        // Check as well the correct highlight
+        // familyName to be in bold
+        var highlight =
+          Normalizer.escapeHTML(mockContact.givenName[0], true) +
+          ' <strong>' +
+            Normalizer.escapeHTML(mockContact.familyName[0], true) +
+          '</strong>';
+        assert.isTrue(printed.innerHTML.indexOf(highlight) == 0);
+      }
+      done();
     });
 
     test('NOT order by lastname', function(done) {
       subject.setOrderByLastName(false);
 
-      doLoad(subject, mockContacts, function() {
-        // First one should be the last one from the list,
-        // with the current names
-        var name = document.querySelector('[data-order]');
-        var mockContact = mockContacts[mockContacts.length - 1];
-        var expected = getStringToBeOrdered(mockContact, false);
+      // Use refresh() to load list since it forces order strings to be
+      // calculated and used for sorting.
+      for (var i = 0; i < mockContacts.length; ++i) {
+        subject.refresh(mockContacts[i]);
+      }
 
-        assert.equal(
-          name.dataset['order'], Normalizer.escapeHTML(expected, true));
+      // First one should be the last one from the list,
+      // with the current names
+      var node = document.querySelector('[data-order]');
+      var mockContact = mockContacts[mockContacts.length - 1];
+      var expected = getStringToBeOrdered(mockContact, false);
 
-        // Check highlight
-        // Given name to be in bold
-        var highlight = '<strong>' +
-               Normalizer.escapeHTML(mockContact.givenName[0], true) +
-             '</strong> ' +
-             Normalizer.escapeHTML(mockContact.familyName[0], true);
-        assert.equal(name.innerHTML.indexOf(highlight), 0);
+      assert.equal(
+        node.dataset['order'], Normalizer.escapeHTML(expected, true));
 
-        subject.setOrderByLastName(true);
-        done();
-      });
+      var name = node.querySelector('p');
+
+      // Check highlight
+      // Given name to be in bold
+      var highlight = '<strong>' +
+             Normalizer.escapeHTML(mockContact.givenName[0], true) +
+           '</strong> ' +
+           Normalizer.escapeHTML(mockContact.familyName[0], true);
+      assert.equal(name.innerHTML.indexOf(highlight), 0);
+
+      subject.setOrderByLastName(true);
+      done();
     });
   });
 });

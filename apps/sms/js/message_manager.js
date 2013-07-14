@@ -68,21 +68,6 @@ var MessageManager = {
   onMessageSent: function mm_onMessageSent(e) {
     ThreadUI.onMessageSent(e.message);
   },
-  // This method fills the gap while we wait for next 'getThreads' request,
-  // letting us rendering the new thread with a better performance.
-  createThreadMockup: function mm_createThreadMockup(message) {
-    // Given a message we create a thread as a mockup. This let us render the
-    // thread without requesting Gecko, so we increase the performance and we
-    // reduce Gecko requests.
-    return {
-        id: message.threadId,
-        participants: [message.sender],
-        body: message.body,
-        timestamp: message.timestamp,
-        unreadCount: 1,
-        lastMessageType: message.type || 'sms'
-      };
-  },
 
   onMessageReceived: function mm_onMessageReceived(e) {
     var message = e.message;
@@ -103,7 +88,7 @@ var MessageManager = {
     threadId = message.threadId;
 
     if (Threads.has(threadId)) {
-      Threads.get(message.threadId).messages.push(message);
+      Threads.get(threadId).messages.push(message);
     }
 
     if (threadId === Threads.currentId) {
@@ -115,43 +100,7 @@ var MessageManager = {
       ThreadUI.scrollViewToBottom();
       Utils.updateTimeHeaders();
     } else {
-      var threadMockup = this.createThreadMockup(message);
-
-      if (!Threads.get(message.threadId)) {
-        Threads.set(message.threadId, threadMockup);
-        Threads.get(message.threadId).messages.push(message);
-      }
-
-      if (ThreadListUI.container.getElementsByTagName('ul').length === 0) {
-        ThreadListUI.renderThreads([threadMockup]);
-      } else {
-        var timestamp = threadMockup.timestamp.getTime();
-        var previousThread = document.getElementById('thread-' + threadId);
-        if (previousThread && previousThread.dataset.time > timestamp) {
-          // If the received SMS it's older that the latest one
-          // We need only to update the 'unread status'
-          ThreadListUI.mark(threadId, 'unread');
-          return;
-        }
-        // We remove the previous one in order to place the new one properly
-        if (previousThread) {
-          var threadsInContainer = previousThread.parentNode.children.length;
-          if (threadsInContainer === 1) {
-            // If it's the last one we should remove the container
-            var oldThreadContainer = previousThread.parentNode;
-            var oldHeaderContainer = oldThreadContainer.previousSibling;
-            ThreadListUI.container.removeChild(oldThreadContainer);
-            ThreadListUI.container.removeChild(oldHeaderContainer);
-          } else {
-            var threadsContainerID = 'threadsContainer_' +
-                              Utils.getDayDate(threadMockup.timestamp);
-            var threadsContainer =
-              document.getElementById(threadsContainerID);
-            threadsContainer.removeChild(previousThread);
-          }
-        }
-        ThreadListUI.appendThread(threadMockup);
-      }
+      ThreadListUI.onMessageReceived(message);
     }
   },
 
@@ -466,18 +415,35 @@ var MessageManager = {
   },
 
   // takes a formatted message in case you happen to have one
-  resendMessage: function mm_resendMessage(message) {
+  resendMessage: function mm_resendMessage(message, callback) {
+    var request;
     if (message.type === 'sms') {
-      return this._mozMobileMessage.send(message.receiver, message.body);
+      request = this._mozMobileMessage.send(message.receiver, message.body);
     }
     if (message.type === 'mms') {
-      return this._mozMobileMessage.sendMMS({
+      request = this._mozMobileMessage.sendMMS({
         receivers: message.receivers,
         subject: message.subject,
         smil: message.smil,
         attachments: message.attachments
       });
     }
+
+    request.onsuccess = function onSuccess(evt) {
+      MessageManager.deleteMessage(message.id);
+      if (callback) {
+        callback(null, evt.target.result);
+      }
+    };
+
+    request.onerror = function onError(evt) {
+      MessageManager.deleteMessage(message.id);
+      if (callback) {
+        callback(evt.target.error);
+      }
+    };
+
+    return request;
   },
 
   deleteMessage: function mm_deleteMessage(id, callback) {

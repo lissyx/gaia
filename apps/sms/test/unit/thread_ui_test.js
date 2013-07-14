@@ -14,6 +14,7 @@ requireApp('sms/js/utils.js');
 requireApp('sms/js/message_manager.js');
 
 requireApp('sms/test/unit/mock_alert.js');
+requireApp('sms/test/unit/mock_link_action_handler.js');
 requireApp('sms/test/unit/mock_attachment.js');
 requireApp('sms/test/unit/mock_attachment_menu.js');
 requireApp('sms/test/unit/mock_l10n.js');
@@ -38,6 +39,7 @@ var mocksHelperForThreadUI = new MocksHelper([
   'Utils',
   'Settings',
   'Recipients',
+  'LinkActionHandler',
   'LinkHelper',
   'MozActivity',
   'ActivityPicker',
@@ -624,15 +626,12 @@ suite('thread_ui.js >', function() {
   });
 
   suite('message type conversion >', function() {
-    var convertBanner, convertBannerText, fakeTime, form;
+    var convertBanner, convertBannerText, form;
     setup(function() {
-      fakeTime = sinon.useFakeTimers();
+      this.sinon.useFakeTimers();
       convertBanner = document.getElementById('messages-convert-notice');
       convertBannerText = convertBanner.querySelector('p');
       form = document.getElementById('messages-compose-form');
-    });
-    teardown(function() {
-      fakeTime.restore();
     });
     test('sms to mms and back displays banner', function() {
       // cause a type switch event to happen
@@ -643,11 +642,11 @@ suite('thread_ui.js >', function() {
       assert.equal(convertBannerText.textContent, 'converted-to-mms',
         'conversion banner has mms message');
 
-      fakeTime.tick(2999);
+      this.sinon.clock.tick(2999);
       assert.isFalse(convertBanner.classList.contains('hide'),
         'conversion banner is shown for just shy of 3 seconds');
 
-      fakeTime.tick(1);
+      this.sinon.clock.tick(1);
       assert.isTrue(convertBanner.classList.contains('hide'),
         'conversion banner is hidden at 3 seconds');
 
@@ -659,11 +658,11 @@ suite('thread_ui.js >', function() {
       assert.equal(convertBannerText.textContent, 'converted-to-sms',
         'conversion banner has sms message');
 
-      fakeTime.tick(2999);
+      this.sinon.clock.tick(2999);
       assert.isFalse(convertBanner.classList.contains('hide'),
         'conversion banner is shown for just shy of 3 seconds');
 
-      fakeTime.tick(1);
+      this.sinon.clock.tick(1);
       assert.isTrue(convertBanner.classList.contains('hide'),
         'conversion banner is hidden at 3 seconds');
 
@@ -684,11 +683,11 @@ suite('thread_ui.js >', function() {
       assert.equal(convertBannerText.textContent, 'converted-to-mms',
         'conversion banner has mms message');
 
-      fakeTime.tick(2999);
+      this.sinon.clock.tick(2999);
       assert.isFalse(convertBanner.classList.contains('hide'),
         'conversion banner is shown for just shy of 3 seconds');
 
-      fakeTime.tick(1);
+      this.sinon.clock.tick(1);
       assert.isTrue(convertBanner.classList.contains('hide'),
         'conversion banner is hidden at 3 seconds');
 
@@ -700,11 +699,11 @@ suite('thread_ui.js >', function() {
       assert.equal(convertBannerText.textContent, 'converted-to-sms',
         'conversion banner has sms message');
 
-      fakeTime.tick(2999);
+      this.sinon.clock.tick(2999);
       assert.isFalse(convertBanner.classList.contains('hide'),
         'conversion banner is shown for just shy of 3 seconds');
 
-      fakeTime.tick(1);
+      this.sinon.clock.tick(1);
       assert.isTrue(convertBanner.classList.contains('hide'),
         'conversion banner is hidden at 3 seconds');
 
@@ -722,7 +721,7 @@ suite('thread_ui.js >', function() {
       assert.equal(convertBannerText.textContent, 'converted-to-mms',
         'conversion banner has mms message');
 
-      fakeTime.tick(1500);
+      this.sinon.clock.tick(1500);
       assert.isFalse(convertBanner.classList.contains('hide'),
         'conversion banner is still shown');
 
@@ -735,11 +734,11 @@ suite('thread_ui.js >', function() {
         'conversion banner has sms message');
 
       // long enough to go past the previous timeout 1500 + 2000 > 3000
-      fakeTime.tick(2000);
+      this.sinon.clock.tick(2000);
       assert.isFalse(convertBanner.classList.contains('hide'),
         'conversion banner is still shown');
 
-      fakeTime.tick(1000);
+      this.sinon.clock.tick(1000);
       assert.isTrue(convertBanner.classList.contains('hide'),
         'conversion banner is hidden at 3 seconds');
 
@@ -989,16 +988,12 @@ suite('thread_ui.js >', function() {
       expiryDate: new Date(Date.now() - ONE_DAY_TIME)
     }];
     setup(function() {
-      sinon.stub(Utils.date.format, 'localeFormat', function() {
+      this.sinon.stub(Utils.date.format, 'localeFormat', function() {
         return 'date_stub';
       });
-      sinon.stub(MessageManager, 'retrieveMMS', function() {
+      this.sinon.stub(MessageManager, 'retrieveMMS', function() {
         return {};
       });
-    });
-    teardown(function() {
-      Utils.date.format.localeFormat.restore();
-      MessageManager.retrieveMMS.restore();
     });
     suite('pending message', function() {
       var message = testMessages[0];
@@ -1295,15 +1290,10 @@ suite('thread_ui.js >', function() {
         1);
 
       this.getMessageReq = {};
-      sinon.stub(MessageManager, 'getMessage')
+      this.sinon.stub(MessageManager, 'getMessage')
         .returns(this.getMessageReq);
-      sinon.stub(MessageManager, 'deleteMessage').callsArgWith(1, true);
-      sinon.stub(MessageManager, 'resendMessage');
-    });
-    teardown(function() {
-      MessageManager.getMessage.restore();
-      MessageManager.deleteMessage.restore();
-      MessageManager.resendMessage.restore();
+      this.sinon.stub(MessageManager, 'deleteMessage').callsArgWith(1, true);
+      this.sinon.stub(MessageManager, 'resendMessage');
     });
 
     // TODO: Implement this functionality in a specialized method and update
@@ -1330,13 +1320,110 @@ suite('thread_ui.js >', function() {
       this.getMessageReq.result = this.targetMsg;
       this.getMessageReq.onsuccess();
 
-      assert.deepEqual(MessageManager.resendMessage.args[0],
-        [this.targetMsg]);
+      var args = MessageManager.resendMessage.args[0];
+      assert.deepEqual(args[0], this.targetMsg);
+    });
+  });
+
+  // Bug 890206 - Resending a message with delivery status
+  // error on a thread with just that message, should leave
+  // the thread with just one message.
+  suite('Message error resent in thread with 1 message', function() {
+    setup(function() {
+      ThreadUI.appendMessage({
+        id: 23,
+        type: 'sms',
+        body: 'This is a error sms',
+        delivery: 'error',
+        timestamp: new Date()
+      });
+      sinon.stub(window, 'confirm');
+      this.errorMsg = ThreadUI.container.querySelector('.error');
+    });
+    teardown(function() {
+      window.confirm.restore();
+    });
+
+    test('clicking on an error message bubble in a thread with 1 message ' +
+      'should try to resend and leave a thread with 1 message',
+      function() {
+      window.confirm.returns(true);
+      this.errorMsg.querySelector('.pack-end').click();
+      assert.equal(ThreadUI.container.querySelectorAll('li').length, 1);
     });
   });
 
   // TODO: Move these tests to an integration test suite.
   // Bug 868056 - Clean up SMS test suite
+
+  suite('Actions on the links >', function() {
+    var messageId = 23, link, phone = '123123123';
+    setup(function() {
+      this.sinon.spy(LinkActionHandler, 'handleTapEvent');
+      this.sinon.spy(LinkActionHandler, 'handleLongPressEvent');
+
+      this.sinon.stub(LinkHelper, 'searchAndLinkClickableData', function() {
+        return '<a data-phonenumber="' + phone +
+        '" data-action="phone-link">' + phone + '</a>';
+      });
+
+      ThreadUI.appendMessage({
+        id: messageId,
+        type: 'sms',
+        body: 'This is a test with 123123123',
+        delivery: 'error',
+        timestamp: new Date()
+      });
+      // Retrieve DOM element for executing the event
+      var messageDOM = document.getElementById('message-' + messageId);
+      link = messageDOM.querySelector('a');
+    });
+
+    teardown(function() {
+      ThreadUI.container.innerHTML = '';
+      link = null;
+    });
+
+    test(' "click"', function() {
+      // In this case we are checking the 'click' action on a link
+      link.click();
+      // This 'click' was handled properly?
+      assert.ok(LinkActionHandler.handleTapEvent.called);
+      assert.isFalse(LinkActionHandler.handleLongPressEvent.called);
+    });
+
+    test(' "contextmenu"', function() {
+      var contextMenuEvent = new CustomEvent('contextmenu', {
+        'bubbles': true,
+        'cancelable': true
+      });
+      this.sinon.spy(contextMenuEvent, 'stopPropagation');
+      // Dispatch custom event for testing long press
+      link.dispatchEvent(contextMenuEvent);
+      // Was the propagation stopped?
+      assert.ok(contextMenuEvent.stopPropagation.called);
+      assert.ok(contextMenuEvent.defaultPrevented);
+      // This 'context-menu' was handled properly?
+      assert.isFalse(LinkActionHandler.handleTapEvent.called);
+      assert.ok(LinkActionHandler.handleLongPressEvent.called);
+    });
+
+    test(' "contextmenu" after "click"', function() {
+      var contextMenuEvent = new CustomEvent('contextmenu', {
+        'bubbles': true,
+        'cancelable': true
+      });
+      // Clicking on the element
+      link.click();
+      // After clicking, we dispatch a context menu
+      link.dispatchEvent(contextMenuEvent);
+      // Are 'click' and 'contextmenu' working properly?
+      assert.ok(LinkActionHandler.handleTapEvent.called);
+      assert.ok(LinkActionHandler.handleLongPressEvent.called);
+    });
+  });
+
+
   suite('Message resending UI', function() {
     setup(function() {
       ThreadUI.appendMessage({
@@ -1353,16 +1440,12 @@ suite('thread_ui.js >', function() {
         delivery: 'sent',
         timestamp: new Date()
       });
-      sinon.stub(window, 'confirm');
-      sinon.stub(ThreadUI, 'resendMessage');
+      this.sinon.stub(window, 'confirm');
+      this.sinon.stub(ThreadUI, 'resendMessage');
       this.elems = {
         errorMsg: ThreadUI.container.querySelector('.error'),
         sentMsg: ThreadUI.container.querySelector('.sent')
       };
-    });
-    teardown(function() {
-      window.confirm.restore();
-      ThreadUI.resendMessage.restore();
     });
     test('clicking on "pack-end" aside in an error message' +
       'triggers a confirmation dialog',

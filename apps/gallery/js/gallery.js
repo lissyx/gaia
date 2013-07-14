@@ -94,14 +94,6 @@ var visibilityMonitor;
 
 var loader = LazyLoader;
 
-// This flag is set in MetadataParser.js if we encounter images larger
-// than 2 megapixels that do not have big enough embedded
-// previews. The flag is read in frames.js where it is used to prevent
-// the user from zooming in on images at the same time (to prevent OOM
-// crashes). And it is cleared below when the scanning process ends
-// XXX: When bug 854795 is fixed, we'll be able to remove this flag
-var scanningBigImages = false;
-
 // The localized event is the main entry point for the app.
 // We don't do anything until we receive it.
 navigator.mozL10n.ready(function showBody() {
@@ -119,9 +111,6 @@ navigator.mozL10n.ready(function showBody() {
 });
 
 function init() {
-  // We only need clicks and move event coordinates
-  MouseEventShim.trackMouseMoves = false;
-
   // Clicking on the select button goes to thumbnail select mode
   $('thumbnails-select-button').onclick =
     setView.bind(null, thumbnailSelectView);
@@ -219,15 +208,15 @@ function initDB() {
   videostorage = navigator.getDeviceStorage('videos');
 
   var loaded = false;
-  function metadataParserWrapper(file, onsuccess, onerror) {
+  function metadataParserWrapper(file, onsuccess, onerror, bigFile) {
     if (loaded) {
-      metadataParser(file, onsuccess, onerror);
+      metadataParser(file, onsuccess, onerror, bigFile);
       return;
     }
 
     loader.load('js/metadata_scripts.js', function() {
       loaded = true;
-      metadataParser(file, onsuccess, onerror);
+      metadataParser(file, onsuccess, onerror, bigFile);
     });
   }
 
@@ -278,9 +267,6 @@ function initDB() {
     // Hide the scanning indicator
     $('progress').classList.add('hidden');
     $('throbber').classList.remove('throb');
-
-    // It is safe to zoom in now
-    scanningBigImages = false;
   };
 
   // On devices with internal and external device storage, this handler is
@@ -381,7 +367,7 @@ function initThumbnails() {
 
 
   // Handle clicks on the thumbnails we're about to create
-  thumbnails.onclick = thumbnailClickHandler;
+  thumbnails.addEventListener('click', thumbnailClickHandler);
 
   // We need to enumerate both the photo and video dbs and interleave
   // the files they return so that everything is in chronological order
@@ -731,8 +717,8 @@ function startPick() {
   else {
     pickWidth = pickHeight = 0;
   }
-  // We need this for cropping the photo
-  loader.load('js/ImageEditor.js', function() {
+  // We need frame_scripts and ImageEditor for cropping the photo
+  loader.load(['js/frame_scripts.js', 'js/ImageEditor.js'], function() {
     setView(pickView);
   });
 }
@@ -852,7 +838,6 @@ window.addEventListener('visibilitychange', function() {
 //
 // Event handlers
 //
-
 
 // Clicking on a thumbnail does different things depending on the view.
 // In thumbnail list mode, it displays the image. In thumbanilSelect mode

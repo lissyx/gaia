@@ -5,6 +5,9 @@
 
 requireApp('sms/js/link_helper.js');
 
+requireApp('sms/js/utils.js');
+requireApp('sms/test/unit/mock_utils.js');
+
 suite('link_helper_test.js', function() {
 
   suite('LinkHelper URL replacements', function() {
@@ -163,6 +166,12 @@ suite('link_helper_test.js', function() {
       test('Simple URL with IPv6', function() {
         testURLNOK('http://[::1]/');
       });
+      test('Bug 890342 1', function() {
+        testURLNOK('2.74');
+      });
+      test('Bug 890342 2', function() {
+        testURLNOK('21.72');
+      });
     });
   });
 
@@ -219,12 +228,38 @@ suite('link_helper_test.js', function() {
       assert.equal(res, phone);
     }
 
-    test('Simple french mobile nat.', function() {
-      testPhoneOK('0612345678');
+    suite('Matches', function() {
+      test('Simple french mobile nat.', function() {
+        testPhoneOK('0612345678');
+      });
+
+      test('Simple french mobile intl', function() {
+        testPhoneOK('+33612345678');
+      });
+
+      test('Phone from #887737', function() {
+        testPhoneOK('+5511 98907-6047');
+      });
     });
 
-    test('Simple french mobile intl', function() {
-      testPhoneOK('+33612345678');
+    suite('Failures', function() {
+      ['0.34', '1200', '5000', '0.122', '0921'].forEach(function(phone) {
+        test(phone, function() {
+          testPhoneNOK(phone);
+        });
+      });
+    });
+
+    suite('Varied cases', function() {
+      FixturePhones.forEach(function(fixture) {
+        suite(fixture.name, function() {
+          fixture.values.forEach(function(value) {
+            test(value, function() {
+              testPhoneOK(value);
+            });
+          });
+        });
+      });
     });
 
   });
