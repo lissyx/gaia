@@ -53,7 +53,13 @@ var ThreadUI = global.ThreadUI = {
   init: function thui_init() {
     var _ = navigator.mozL10n.get;
     var templateIds = [
-      'contact', 'number', 'highlight', 'message', 'not-downloaded', 'recipient'
+      'contact',
+      'contact-photo',
+      'highlight',
+      'message',
+      'not-downloaded',
+      'number',
+      'recipient'
     ];
 
     Compose.init('messages-compose-form');
@@ -328,7 +334,10 @@ var ThreadUI = global.ThreadUI = {
   // Method for setting the body of a SMS/MMS from activity
   setMessageBody: function thui_setMessageBody(value) {
     Compose.clear();
-    Compose.append(value);
+    if (value) {
+      Compose.append(value);
+    }
+    Compose.focus();
   },
 
   messageComposerInputHandler: function thui_messageInputHandler(event) {
@@ -1595,8 +1604,11 @@ var ThreadUI = global.ThreadUI = {
      *     |true| if the value params.input should be
      *     highlighted in the rendered HTML & all tel
      *     entries should be rendered.
-     *     *
+     *
+     *   renderPhoto:
+     *     |true| if we want to retrieve the contact photo
      * }
+     *
      */
 
     // Contact records that don't have phone numbers
@@ -1613,6 +1625,7 @@ var ThreadUI = global.ThreadUI = {
     var isSuggestion = params.isSuggestion;
     var tels = contact.tel;
     var telsLength = tels.length;
+    var renderPhoto = params.renderPhoto;
 
     // We search on the escaped HTML via a regular expression
     var escaped = Utils.escapeRegex(Utils.escapeHTML(input));
@@ -1632,8 +1645,9 @@ var ThreadUI = global.ThreadUI = {
       return false;
     }
 
+    var include = renderPhoto ? { photoURL: true } : null;
     var details = isContact ?
-      Utils.getContactDetails(tels[0].value, contact) : {
+      Utils.getContactDetails(tels[0].value, contact, include) : {
         name: '',
         photoURL: ''
       };
@@ -1695,11 +1709,17 @@ var ThreadUI = global.ThreadUI = {
         }
       }, this);
 
+      // Render contact photo only if specifically stated on the call
+      data.photoHTML = renderPhoto ?
+        this.tmpl.contactPhoto.interpolate({
+          photoURL: details.photoURL || ''
+        }) : '';
+
       // Interpolate HTML template with data and inject.
       // Known "safe" HTML values will not be re-sanitized.
       if (isContact) {
         li.innerHTML = this.tmpl.contact.interpolate(data, {
-          safe: ['nameHTML', 'numberHTML', 'srcAttr']
+          safe: ['nameHTML', 'numberHTML', 'srcAttr', 'photoHTML']
         });
       } else {
         li.innerHTML = this.tmpl.number.interpolate(data);
@@ -1871,7 +1891,8 @@ var ThreadUI = global.ThreadUI = {
           input: participant,
           target: ul,
           isContact: isContact,
-          isSuggestion: false
+          isSuggestion: false,
+          renderPhoto: true
         });
       }.bind(this));
     }.bind(this));
@@ -1897,33 +1918,51 @@ var ThreadUI = global.ThreadUI = {
     }
 
     var _ = navigator.mozL10n.get;
+    var thread = Threads.get(Threads.lastId || Threads.currentId);
     var number = opt.number;
     var name = opt.name || number;
-    var items = [
-      {
-        name: _('call'),
-        method: function oCall(param) {
-          ActivityPicker.call(param);
-        },
-        params: [number]
+    var isContact = opt.isContact || false;
+    var items = [];
+    var params;
+
+    // An activation for a single, known recipient contact
+    // will initiate a call to that recipient contact.
+    if (isContact && thread.participants.length === 1) {
+      ActivityPicker.call(number);
+      return;
+    }
+
+    // All activations will see a "Call" option
+    items.push({
+      name: _('call'),
+      method: function oCall(param) {
+        ActivityPicker.call(param);
       },
-      {
+      params: [number]
+    });
+
+    // Multi-participant activations will also see
+    // a "Send Message" option
+    if (thread.participants.length > 1) {
+      items.push({
         name: _('sendMessage'),
         method: function oCall(param) {
           ActivityPicker.sendMessage(param);
         },
         params: [number]
-      }
-    ];
+      });
+    }
 
-    var params = {
+    // Combine the items and complete callback into
+    // a single params object.
+    params = {
       items: items,
       complete: complete
     };
 
     // If this is a known contact, display an option menu
     // with buttons for "Call" and "Cancel"
-    if (opt.isContact) {
+    if (isContact) {
 
       params.section = typeof opt.body !== 'undefined' ? opt.body : name;
 
@@ -1934,7 +1973,8 @@ var ThreadUI = global.ThreadUI = {
           name: _('createNewContact'),
           method: function oCreate(param) {
             ActivityPicker.createNewContact(
-              param, ThreadUI.onCreateContact);
+              param, ThreadUI.onCreateContact
+            );
           },
           params: [{'tel': number}]
         },
@@ -1942,13 +1982,15 @@ var ThreadUI = global.ThreadUI = {
           name: _('addToExistingContact'),
           method: function oAdd(param) {
             ActivityPicker.addToExistingContact(
-              param, ThreadUI.onCreateContact);
+              param, ThreadUI.onCreateContact
+            );
           },
           params: [{'tel': number}]
         }
       );
     }
 
+    // All activations will see a "Cancel" option
     params.items.push({
       name: _('cancel'),
       incomplete: true

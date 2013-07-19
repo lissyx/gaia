@@ -153,41 +153,50 @@ var MessageManager = {
     Compose.clear();
     this.threadMessages.classList.add('new');
 
-    var self = this;
     MessageManager.slide('left', function() {
       ThreadUI.initRecipients();
       if (!activity) {
         return;
       }
 
-      // Choose the appropiate contact resolver, if we
-      // have a contact object, and no number,just use a dummy source,
-      // and return the contact, if not, if we have a number, use
-      // one of the functions to get a contact based on a number
-      var contactSource = Contacts.findByPhoneNumber.bind(Contacts);
-      var phoneNumber = activity.number;
-      if (activity.contact && !phoneNumber) {
-        contactSource = function dummySource(contact, cb) {
+      /**
+       * Choose the appropriate contact resolver:
+       *  - if we have a phone number and no contact, rely on findByPhoneNumber
+       *    to get a contact matching the number;
+       *  - if we have a contact object and no phone number, just use a dummy
+       *    source that returns the contact.
+       */
+      var findByPhoneNumber = Contacts.findByPhoneNumber.bind(Contacts);
+      var number = activity.number;
+      if (activity.contact && !number) {
+        findByPhoneNumber = function dummySource(contact, cb) {
           cb(activity.contact);
         };
-        phoneNumber = activity.contact.number || activity.contact.tel[0].value;
+        number = activity.contact.number || activity.contact.tel[0].value;
       }
 
-      Utils.getContactDisplayInfo(contactSource, phoneNumber,
-        (function onData(data) {
-        data.source = 'contacts';
-        ThreadUI.recipients.add(data);
-      }).bind(this));
-
-      // If the message has a body, use it to populate the input field.
-      if (activity.body) {
-        ThreadUI.setMessageBody(
-          activity.body
+      // Add recipients and fill+focus the Compose area.
+      if (activity.contact && number) {
+        Utils.getContactDisplayInfo(
+          findByPhoneNumber, number, function onData(data) {
+            data.source = 'contacts';
+            ThreadUI.recipients.add(data);
+            ThreadUI.setMessageBody(activity.body);
+          }
         );
+      } else {
+        // If the activity delivered the number of an unknown recipient,
+        // create a recipient directly.
+        ThreadUI.recipients.add({
+          number: activity.number,
+          source: 'manual'
+        });
+        ThreadUI.setMessageBody(activity.body);
       }
+
       // Clean activity object
-      self.activity = null;
-    });
+      this.activity = null;
+    }.bind(this));
   },
 
   onHashChange: function mm_onHashChange(e) {

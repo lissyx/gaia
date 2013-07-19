@@ -32,6 +32,8 @@ requireApp('sms/test/unit/mock_activity_picker.js');
 requireApp('sms/test/unit/mock_action_menu.js');
 requireApp('sms/test/unit/mock_dialog.js');
 requireApp('sms/test/unit/mock_smil.js');
+requireApp('sms/test/unit/mock_custom_dialog.js');
+requireApp('sms/test/unit/mock_url.js');
 
 var mocksHelperForThreadUI = new MocksHelper([
   'Attachment',
@@ -1777,6 +1779,63 @@ suite('thread_ui.js >', function() {
       assert.ok(!html.contains('346578888888'));
       assert.equal(ul.children.length, 1);
     });
+
+    test('Render contact does not include photo by default', function() {
+      var ul = document.createElement('ul');
+      var contact = new MockContact();
+      var html;
+
+      ThreadUI.renderContact({
+        contact: contact,
+        input: 'foo',
+        target: ul,
+        isContact: true,
+        isSuggestion: true,
+        renderPhoto: false
+      });
+      html = ul.firstElementChild.innerHTML;
+
+      assert.isFalse(html.contains('img'));
+    });
+    test('Render contact without photo keeps avatar invisible', function() {
+      var ul = document.createElement('ul');
+      var contact = new MockContact();
+      var html;
+      contact.photo = testImageBlob;
+
+      ThreadUI.renderContact({
+        contact: contact,
+        input: 'foo',
+        target: ul,
+        isContact: true,
+        isSuggestion: true,
+        renderPhoto: true
+      });
+      html = ul.firstElementChild.innerHTML;
+
+      assert.ok(html.contains('img'));
+      assert.equal(ul.querySelector('img').style.opacity, 0);
+
+    });
+    test('Render contact with photo shows the image', function() {
+      var ul = document.createElement('ul');
+      var contact = new MockContact();
+      var html;
+      contact.photo = testImageBlob;
+
+      ThreadUI.renderContact({
+        contact: contact,
+        input: 'foo',
+        target: ul,
+        isContact: true,
+        isSuggestion: true,
+        renderPhoto: true
+      });
+      html = ul.firstElementChild.innerHTML;
+
+      assert.ok(html.contains('img'));
+      assert.equal(ul.querySelector('img').style.opacity, '');
+    });
   });
 
   suite('Header Actions/Display', function() {
@@ -1792,13 +1851,124 @@ suite('thread_ui.js >', function() {
       MockActivityPicker.call.mTeardown();
       MockOptionMenu.mTeardown();
     });
-    // See: utils_test.js
-    // Utils.getCarrierTag
-    //
-    suite('Single participant', function() {
 
-      suite('Options', function() {
-        test('Contact Options (known)', function() {
+    suite('OptionMenu', function() {
+
+      suite('activateContact', function() {
+        test('Single known', function() {
+
+          Threads.set(1, {
+            participants: ['999']
+          });
+
+          window.location.hash = '#thread=1';
+
+          ThreadUI.activateContact({
+            number: '999',
+            isContact: true
+          });
+
+          assert.equal(MockOptionMenu.calls.length, 0);
+          assert.ok(MockActivityPicker.call.called);
+          assert.equal(MockActivityPicker.call.calledWith, '999');
+        });
+
+        test('Single unknown', function() {
+
+          Threads.set(1, {
+            participants: ['999']
+          });
+
+          window.location.hash = '#thread=1';
+
+          ThreadUI.activateContact({
+            number: '999',
+            isContact: false
+          });
+
+          var items = MockOptionMenu.calls[0].items;
+
+          assert.equal(MockOptionMenu.calls.length, 1);
+          assert.equal(items.length, 4);
+
+          // The first item is a "call" option
+          assert.equal(items[0].name, 'call');
+
+          // The second item is a "createNewContact" option
+          assert.equal(items[1].name, 'createNewContact');
+
+          // The third item is a "addToExistingContact" option
+          assert.equal(items[2].name, 'addToExistingContact');
+
+          // The fourth and last item is a "cancel" option
+          assert.equal(items[3].name, 'cancel');
+        });
+
+        test('Multiple known', function() {
+
+          Threads.set(1, {
+            participants: ['999', '888']
+          });
+
+          window.location.hash = '#thread=1';
+
+          ThreadUI.activateContact({
+            number: '999',
+            isContact: true
+          });
+
+          var items = MockOptionMenu.calls[0].items;
+
+          assert.equal(MockOptionMenu.calls.length, 1);
+          assert.equal(items.length, 3);
+
+          // The first item is a "call" option
+          assert.equal(items[0].name, 'call');
+
+          // The second item is a "send message" option
+          assert.equal(items[1].name, 'sendMessage');
+
+          // The third and last item is a "cancel" option
+          assert.equal(items[2].name, 'cancel');
+        });
+
+        test('Multiple unknown', function() {
+
+          Threads.set(1, {
+            participants: ['999', '888']
+          });
+
+          window.location.hash = '#thread=1';
+
+          ThreadUI.activateContact({
+            number: '999',
+            isContact: false
+          });
+
+          var items = MockOptionMenu.calls[0].items;
+
+          assert.equal(MockOptionMenu.calls.length, 1);
+          assert.equal(items.length, 5);
+
+          // The first item is a "call" option
+          assert.equal(items[0].name, 'call');
+
+          // The second item is a "sendMessage" option
+          assert.equal(items[1].name, 'sendMessage');
+
+          // The third item is a "createNewContact" option
+          assert.equal(items[2].name, 'createNewContact');
+
+          // The fourth item is a "addToExistingContact" option
+          assert.equal(items[3].name, 'addToExistingContact');
+
+          // The fifth and last item is a "cancel" option
+          assert.equal(items[4].name, 'cancel');
+        });
+      });
+
+      suite('onHeaderActivation', function() {
+        test('Single known', function() {
 
           Threads.set(1, {
             participants: ['999']
@@ -1813,13 +1983,14 @@ suite('thread_ui.js >', function() {
 
           var calls = MockOptionMenu.calls;
 
-          assert.equal(calls.length, 1);
-          assert.equal(calls[0].section, '999');
-          assert.equal(calls[0].items.length, 3);
-          assert.equal(typeof calls[0].complete, 'function');
+          // Does not initiate an OptionMenu
+          assert.equal(MockOptionMenu.calls.length, 0);
+
+          // Does initiate a "call" activity
+          assert.equal(MockActivityPicker.call.called, 1);
         });
 
-        test('Contact Options (unknown)', function() {
+        test('Single unknown', function() {
 
           Threads.set(1, {
             participants: ['777']
@@ -1836,10 +2007,16 @@ suite('thread_ui.js >', function() {
 
           assert.equal(calls.length, 1);
           assert.equal(calls[0].header, '777');
-          assert.equal(calls[0].items.length, 5);
+          assert.equal(calls[0].items.length, 4);
           assert.equal(typeof calls[0].complete, 'function');
         });
       });
+    });
+
+    // See: utils_test.js
+    // Utils.getCarrierTag
+    //
+    suite('Single participant', function() {
 
       suite('Carrier Tag', function() {
         test('Carrier Tag (non empty string)', function(done) {
@@ -2182,4 +2359,51 @@ suite('thread_ui.js >', function() {
       assert.equal(window.location.hash, '#new');
     });
   });
+
+  suite('setMessageBody', function() {
+    setup(function() {
+      this.sinon.stub(Compose, 'clear');
+      this.sinon.stub(Compose, 'append');
+      this.sinon.stub(Compose, 'focus');
+    });
+
+    suite('with data', function() {
+      var testText = 'testing';
+      setup(function() {
+        ThreadUI.setMessageBody(testText);
+      });
+
+      test('calls clear', function() {
+        assert.ok(Compose.clear.called);
+      });
+
+      test('calls append with correct data', function() {
+        assert.ok(Compose.append.calledWith(testText));
+      });
+
+      test('calls focus', function() {
+        assert.ok(Compose.focus.called);
+      });
+    });
+
+    suite('without data', function() {
+      var testText = '';
+      setup(function() {
+        ThreadUI.setMessageBody(testText);
+      });
+
+      test('calls clear', function() {
+        assert.ok(Compose.clear.called);
+      });
+
+      test('does not call append with empty data', function() {
+        assert.isFalse(Compose.append.called);
+      });
+
+      test('calls focus', function() {
+        assert.ok(Compose.focus.called);
+      });
+    });
+  });
+
 });

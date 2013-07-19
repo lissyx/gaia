@@ -21,14 +21,6 @@ var SimManager = {
                                this.handleCardState.bind(this));
 
     this.alreadyImported = false;
-
-    Object.defineProperty(this,
-                          'retryCount', {
-                            configurable: true,
-                            get: function() {
-                              return this.mobConn.retryCount;
-                            }
-                          });
   },
 
   handleUnlockError: function sm_handleUnlockError(data) {
@@ -137,14 +129,17 @@ var SimManager = {
     if (this._unlocked)
       return;
 
-    if (!this.retryCount || this.retryCount === 'undefined') {
-      UIManager.pinRetriesLeft.classList.add('hidden');
-    } else {
-      var l10nArgs = {n: this.retryCount};
-      UIManager.pinRetriesLeft.textContent = _('inputCodeRetriesLeft',
-                                               l10nArgs);
-      UIManager.pinRetriesLeft.classList.remove('hidden');
-    }
+    IccHelper.getCardLockRetryCount('pin', function(retryCount) {
+      if (!retryCount) {
+        UIManager.pinRetriesLeft.classList.add('hidden');
+      } else {
+        var l10nArgs = {n: retryCount};
+        UIManager.pinRetriesLeft.textContent = _('inputCodeRetriesLeft',
+                                                 l10nArgs);
+        UIManager.pinRetriesLeft.classList.remove('hidden');
+      }
+    });
+
     UIManager.activationScreen.classList.remove('show');
     UIManager.unlockSimScreen.classList.add('show');
     UIManager.pincodeScreen.classList.add('show');
@@ -156,14 +151,17 @@ var SimManager = {
     if (this._unlocked)
       return;
 
-    if (!this.retryCount) {
-      UIManager.pukRetriesLeft.classList.add('hidden');
-    } else {
-      var l10nArgs = {n: this.retryCount};
-      UIManager.pukRetriesLeft.textContent = _('inputCodeRetriesLeft',
-                                               l10nArgs);
-      UIManager.pukRetriesLeft.classList.remove('hidden');
-    }
+    IccHelper.getCardLockRetryCount('puk', function(retryCount) {
+      if (!retryCount) {
+        UIManager.pukRetriesLeft.classList.add('hidden');
+      } else {
+        var l10nArgs = {n: retryCount};
+        UIManager.pukRetriesLeft.textContent = _('inputCodeRetriesLeft',
+                                                 l10nArgs);
+        UIManager.pukRetriesLeft.classList.remove('hidden');
+      }
+    });
+
     UIManager.unlockSimScreen.classList.add('show');
     UIManager.activationScreen.classList.remove('show');
     UIManager.pincodeScreen.classList.remove('show');
@@ -177,14 +175,33 @@ var SimManager = {
     if (this._unlocked)
       return;
 
-    if (!this.retryCount) {
-      UIManager.xckRetriesLeft.classList.add('hidden');
-    } else {
-      var l10nArgs = {n: this.retryCount};
-      UIManager.xckRetriesLeft.textContent = _('inputCodeRetriesLeft',
-                                               l10nArgs);
-      UIManager.xckRetriesLeft.classList.remove('hidden');
+    var lockType;
+
+    switch (IccHelper.cardState) {
+      case 'networkLocked':
+        lockType = 'nck';
+        break;
+      case 'corporateLocked':
+        lockType = 'cck';
+        break;
+      case 'serviceProviderLocked':
+        lockType = 'spck';
+        break;
+      default:
+        return; // We shouldn't be here.
     }
+
+    IccHelper.getCardLockRetryCount(lockType, function(retryCount) {
+      if (!retryCount) {
+        UIManager.xckRetriesLeft.classList.add('hidden');
+      } else {
+        var l10nArgs = {n: retryCount};
+        UIManager.xckRetriesLeft.textContent = _('inputCodeRetriesLeft',
+                                                 l10nArgs);
+        UIManager.xckRetriesLeft.classList.remove('hidden');
+      }
+    });
+
     UIManager.unlockSimScreen.classList.add('show');
     UIManager.activationScreen.classList.remove('show');
     UIManager.pincodeScreen.classList.remove('show');
@@ -356,10 +373,26 @@ var SimManager = {
     var importButton = UIManager.simImportButton;
     importButton.setAttribute('disabled', 'disabled');
 
+    var cancelled = false, contactsRead = false;
     var importer = new SimContactsImporter();
+    utils.overlay.showMenu();
+    utils.overlay.oncancel = function oncancel() {
+      cancelled = true;
+      importer.finish();
+      if (contactsRead) {
+        // A message about canceling will be displayed while the current chunk
+        // is being cooked
+        progress.setClass('activityBar');
+        utils.overlay.hideMenu();
+        progress.setHeaderMsg(_('messageCanceling'));
+      } else {
+        importer.onfinish(); // Early return while reading contacts
+      }
+    };
     var importedContacts = 0;
 
     importer.onread = function sim_import_read(n) {
+      contactsRead = true;
       progress.setClass('progressBar');
       progress.setHeaderMsg(_('simContacts-importing'));
       progress.setTotal(n);
@@ -367,17 +400,23 @@ var SimManager = {
 
     importer.onimported = function imported_contact() {
       importedContacts++;
-      progress.update();
+      if (!cancelled) {
+        progress.update();
+      }
     };
 
     importer.onfinish = function sim_import_finish() {
       window.setTimeout(function do_sim_import_finish() {
-        window.importUtils.setTimestamp('sim');
-        SimManager.alreadyImported = true;
         UIManager.navBar.removeAttribute('aria-disabled');
         utils.overlay.hide();
-        utils.status.show(_('simContacts-imported3', {n: importedContacts}));
+        if (importedContacts !== 0) {
+          window.importUtils.setTimestamp('sim');
+          SimManager.alreadyImported = true;
+          utils.status.show(_('simContacts-imported3', {n: importedContacts}));
+        }
       }, DELAY_FEEDBACK);
+
+      importer.onfinish = null;
     };
 
     importer.onerror = function sim_import_error() {

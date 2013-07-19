@@ -377,13 +377,29 @@ contacts.Settings = (function() {
 
     var wakeLock = navigator.requestWakeLock('cpu');
 
+    var cancelled = false, contactsRead = false;
     var importer = new SimContactsImporter();
+    utils.overlay.showMenu();
+    utils.overlay.oncancel = function oncancel() {
+      cancelled = true;
+      importer.finish();
+      if (contactsRead) {
+        // A message about canceling will be displayed while the current chunk
+        // is being cooked
+        progress.setClass('activityBar');
+        utils.overlay.hideMenu();
+        progress.setHeaderMsg(_('messageCanceling'));
+      } else {
+        importer.onfinish(); // Early return while reading contacts
+      }
+    };
     var totalContactsToImport;
     var importedContacts = 0;
     // Delay for showing feedback to the user after importing
     var DELAY_FEEDBACK = 200;
 
     importer.onread = function import_read(n) {
+      contactsRead = true;
       totalContactsToImport = n;
       progress.setClass('progressBar');
       progress.setHeaderMsg(_('simContacts-importing'));
@@ -392,17 +408,24 @@ contacts.Settings = (function() {
 
     importer.onfinish = function import_finish() {
       window.setTimeout(function onfinish_import() {
-        window.importUtils.setTimestamp('sim');
         resetWait(wakeLock);
         Contacts.navigation.home();
-        Contacts.showStatus(_('simContacts-imported3',
-          {n: importedContacts}));
+        if (importedContacts !== 0) {
+          window.importUtils.setTimestamp('sim');
+          Contacts.showStatus(_('simContacts-imported3', {
+            n: importedContacts
+          }));
+        }
       }, DELAY_FEEDBACK);
+
+      importer.onfinish = null;
     };
 
     importer.onimported = function imported_contact() {
       importedContacts++;
-      progress.update();
+      if (!cancelled) {
+        progress.update();
+      }
     };
 
     importer.onerror = function import_error() {
@@ -429,8 +452,15 @@ contacts.Settings = (function() {
   };
 
   var onSdImport = function onSdImport() {
+    var cancelled = false;
+    var importer = null;
     var progress = Contacts.showOverlay(
       _('memoryCardContacts-reading'), 'activityBar');
+    utils.overlay.showMenu();
+    utils.overlay.oncancel = function() {
+      cancelled = true;
+      importer ? importer.finish() : Contacts.hideOverlay();
+    };
     var wakeLock = navigator.requestWakeLock('cpu');
 
     var importedContacts = 0;
@@ -446,6 +476,9 @@ contacts.Settings = (function() {
       if (err)
         return import_error(err);
 
+      if (cancelled)
+        return;
+
       if (fileArray.length)
         utils.sdcard.getTextFromFiles(fileArray, '', onFiles);
       else
@@ -456,7 +489,10 @@ contacts.Settings = (function() {
       if (err)
         return import_error(err);
 
-      var importer = new VCFReader(text);
+      if (cancelled)
+        return;
+
+      importer = new VCFReader(text);
       if (!text || !importer)
         return import_error('No contacts were found.');
 

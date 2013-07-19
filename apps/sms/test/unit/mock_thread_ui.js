@@ -1,10 +1,23 @@
 'use strict';
 
 var MockThreadUI = {
-  isShowSendMessageErrorCalledTimes: 0,
+  recipients: null,
+  recipientsList: document.createElement('div'),
 
-  appendMessage: function() {
+  initRecipients: function() {
+    this.recipients = new Recipients({
+      outer: 'messages-to-field',
+      inner: 'messages-recipients-list',
+      template: new Utils.Template('messages-recipient-tmpl')
+    });
   },
+
+  // simple stubs
+  cleanFields: function() {},
+  appendMessage: function() {},
+  setMessageBody: function() {},
+
+  isShowSendMessageErrorCalledTimes: 0,
 
   showSendMessageError: function() {
     this.isShowSendMessageErrorCalledTimes += 1;
@@ -18,3 +31,4 @@ var MockThreadUI = {
     this.isShowSendMessageErrorCalledTimes = 0;
   }
 };
+

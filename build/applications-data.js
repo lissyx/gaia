@@ -198,58 +198,6 @@ let init = getFile(GAIA_DIR, GAIA_CORE_APP_SRCDIR,
                   'homescreen', 'js', 'init.json');
 writeContent(init, JSON.stringify(content));
 
-// Apps that should never appear in settings > app permissions
-// bug 830659: We want homescreen to appear in order to remove e.me geolocation
-// permission
-let hidden_apps = [
-  gaiaManifestURL('keyboard'),
-  gaiaManifestURL('wallpaper'),
-  gaiaManifestURL('bluetooth'),
-  gaiaManifestURL('pdfjs')
-];
-
-init = getFile(GAIA_DIR, GAIA_CORE_APP_SRCDIR, 'settings', 'js',
-               'hiddenapps.js');
-writeContent(init, 'var HIDDEN_APPS = ' + JSON.stringify(hidden_apps));
-
-// Apps that should never appear as icons in the homescreen grid or dock
-hidden_apps = hidden_apps.concat([
-  gaiaManifestURL('homescreen'),
-  gaiaManifestURL('system')
-]);
-
-init = getFile(GAIA_DIR, GAIA_CORE_APP_SRCDIR, 'homescreen', 'js',
-               'hiddenapps.js');
-writeContent(init, 'var HIDDEN_APPS = ' + JSON.stringify(hidden_apps));
-
-// Cost Control
-init = getFile(GAIA_DIR, 'apps', 'costcontrol', 'js', 'config.json');
-
-content = {
-  provider: 'Free',
-  enable_on: { "208": ["1", "15"] }, // { MCC: [ MNC1, MNC2, ...] }
-  is_free: false,
-  is_roaming_free: true,
-  credit: { currency : '€' },
-  balance: { 
-    destination: '999',
-    text: 'FirefoxOS powered',
-    senders: ['555'],
-    regexp: 'Du [0-9]{2}\/[0-9]{2} au [0-9]{2}\/[0-9]{2}, votre conso hors-forfait est de\\s*([0-9]+)(?:[,\\.]([0-9]+))?€'
-  },
-  topup: {
-    destination: '7000',
-    ussd_destination: '*321#',
-    text: '&code',
-    senders: ['1515', '7000'],
-    confirmation_regexp: 'Voce recarregou R\\$\\s*([0-9]+)(?:[,\\.]([0-9]+))?',
-    incorrect_code_regexp: '(Favor enviar|envie novamente|Verifique) o codigo de recarga'
-  },
-  default_low_limit_threshold: 3
-};
-
-writeContent(init, getDistributionFileContent('costcontrol', content));
-
 // SMS
 init = getFile(GAIA_DIR, 'apps', 'sms', 'js', 'blacklist.json');
 content = ['4850', '7000'];
@@ -295,6 +243,12 @@ content = {
 };
 
 writeContent(init, getDistributionFileContent('icc', content));
+
+// WAP UA profile url
+init = getFile(GAIA_DIR, 'apps', 'system', 'resources', 'wapuaprof.json');
+content = {};
+
+writeContent(init, getDistributionFileContent('wapuaprof.json', content));
 
 // Calendar Config
 init = getFile(GAIA_DIR, 'apps', 'calendar', 'js', 'presets.js');

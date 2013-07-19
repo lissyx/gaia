@@ -9,6 +9,14 @@
 var VCFReader = function(contents) {
   this.contents = contents;
   this.processedContacts = 0;
+  this.finished = false;
+};
+
+// Number of contacts processed in parallel
+VCFReader.CHUNK_SIZE = 5;
+
+VCFReader.prototype.finish = function() {
+  this.finished = true;
 };
 
 VCFReader.prototype.process = function(cb) {
@@ -28,28 +36,34 @@ VCFReader.prototype.process = function(cb) {
   }
 
   var self = this;
-  var allDone = false;
-  this.totalContacts = rawContacts.length;
-  rawContacts.forEach(function(ct) { VCFReader.save(ct, onParsed); });
+  var total = rawContacts.length;
+
+  if (total === 0) {
+    // Returning becasue there aren't contacts to import
+    cb(rawContacts);
+    return;
+  }
+
+  function importContacts(from) {
+    for (var i = from; i < from + VCFReader.CHUNK_SIZE && i < total; i++) {
+      VCFReader.save(rawContacts[i], onParsed);
+    }
+  }
+
+  importContacts(this.processedContacts);
 
   function onParsed(err, ct) {
     self.onimported && self.onimported();
-
     self.processedContacts += 1;
-    if (self.checkIfCompleted() && allDone === false) {
+
+    if (self.processedContacts < total &&
+        self.processedContacts % VCFReader.CHUNK_SIZE === 0) {
+      // Batch finishes, next one...
+      self.finished ? cb(rawContacts) : importContacts(self.processedContacts);
+    } else if (self.processedContacts === total) {
       cb(rawContacts);
-      allDone = true;
     }
   }
-};
-
-/**
- * Checks if all the contacts have been processed by comparing them to the
- * initial number of entries in the vCard
- * @return {Boolean} return true if processed, false otherwise.
- */
-VCFReader.prototype.checkIfCompleted = function() {
-  return this.processedContacts === this.totalContacts;
 };
 
 /**
@@ -89,14 +103,13 @@ VCFReader._decodeQuoted = function(str) {
  * @return {string}
  */
 VCFReader.decodeQP = function(metaObj, value) {
-  var decoded = value;
-  var isQP = metaObj && metaObj['encoding'] &&
-    metaObj['encoding'].toLowerCase() === 'quoted-printable';
+  var isQP = metaObj && metaObj.encoding &&
+    metaObj.encoding.toLowerCase() === 'quoted-printable';
 
   if (isQP)
-    decoded = VCFReader._decodeQuoted(decoded);
+    value = VCFReader._decodeQuoted(value);
 
-  return decoded;
+  return value;
 };
 
 VCFReader.nameParts = [
@@ -120,8 +133,11 @@ VCFReader.processName = function(vcardObj, contactObj) {
   var parts = VCFReader.nameParts;
 
   // Set First Name right away as the 'name' property
-  if (vcardObj.fn && vcardObj.fn.length)
-    contactObj.name = vcardObj.fn[0].value;
+  if (vcardObj.fn && vcardObj.fn.length) {
+    var fnMeta = vcardObj.fn[0].meta;
+    var fnValue = vcardObj.fn[0].value[0];
+    contactObj.name = [VCFReader.decodeQP(fnMeta, fnValue)];
+  }
 
   if (vcardObj.n && vcardObj.n.length) {
     var values = vcardObj.n[0].value;
@@ -282,14 +298,14 @@ VCFReader.splitLines = function(vcf) {
       continue;
     }
 
-    if (inLabel || vcf[i] !== '\n') {
+    if (inLabel || !(/(\n|\r)/.test(vcf[i]))) {
       currentStr += vcf[i];
       continue;
     }
 
     var sub = vcf.substring(i + 1, vcf.length - 1);
     if (currentStr.toLowerCase().indexOf('label;') !== -1 &&
-      sub.search(/^[^\n]+:/) === -1) {
+      sub.search(/^[^\n\r]+:/) === -1) {
       currentStr += vcf[i];
       continue;
     }
