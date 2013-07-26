@@ -300,14 +300,18 @@ var ThreadUI = global.ThreadUI = {
 
     // navigator.mozSettings may not be defined in all environments
     if (navigator.mozSettings) {
-      var req = navigator.mozSettings.createLock().get(this.sentAudioKey);
-      req.onsuccess = (function onsuccess() {
-        this.sentAudioEnabled = req.result[this.sentAudioKey];
-      }).bind(this);
+      try {
+        var req = navigator.mozSettings.createLock().get(this.sentAudioKey);
+        req.onsuccess = (function onsuccess() {
+          this.sentAudioEnabled = req.result[this.sentAudioKey];
+        }).bind(this);
 
-      navigator.mozSettings.addObserver(this.sentAudioKey, (function(e) {
-        this.sentAudioEnabled = e.settingValue;
-      }).bind(this));
+        navigator.mozSettings.addObserver(this.sentAudioKey, (function(e) {
+          this.sentAudioEnabled = e.settingValue;
+        }).bind(this));
+      } catch (e) {
+        this.sentAudioEnabled = false;
+      }
     }
   },
 
@@ -1061,6 +1065,12 @@ var ThreadUI = global.ThreadUI = {
     var classNames = ['message', message.type, delivery];
 
     var notDownloaded = delivery === 'not-downloaded';
+    var attachments = message.attachments;
+    // Returning attachments would be different based on gecko version:
+    // null in b2g18 / empty array in master.
+    var noAttachment = (message.type === 'mms' && !notDownloaded &&
+      (attachments === null || attachments.length === 0));
+    var _ = navigator.mozL10n.get;
 
     if (delivery === 'received' || notDownloaded) {
       classNames.push('incoming');
@@ -1085,6 +1095,11 @@ var ThreadUI = global.ThreadUI = {
       bodyHTML = this._createNotDownloadedHTML(message, classNames);
     }
 
+    if (noAttachment) {
+      classNames = classNames.concat(['error', 'no-attachment']);
+      bodyHTML = Utils.escapeHTML(_('no-attachment-text'));
+    }
+
     messageDOM.className = classNames.join(' ');
     messageDOM.id = 'message-' + message.id;
     messageDOM.dataset.messageId = message.id;
@@ -1096,7 +1111,7 @@ var ThreadUI = global.ThreadUI = {
       safe: ['bodyHTML']
     });
 
-    if (message.type === 'mms' && !notDownloaded) { // MMS
+    if (message.type === 'mms' && !notDownloaded && !noAttachment) { // MMS
       var pElement = messageDOM.querySelector('p');
       SMIL.parse(message, function(slideArray) {
         pElement.appendChild(ThreadUI.createMmsContent(slideArray));
@@ -1302,6 +1317,12 @@ var ThreadUI = global.ThreadUI = {
       return;
     }
 
+    // Do nothing for no attachment error because it's not possible to
+    // retrieve message again in this edge case.
+    if (elems.message.classList.contains('no-attachment')) {
+      return;
+    }
+
     // Click events originating from a "pack-end" aside of an error message
     // should trigger a prompt for retransmission.
     if (elems.message.classList.contains('error') && elems.packEnd) {
@@ -1482,14 +1503,7 @@ var ThreadUI = global.ThreadUI = {
     var buttonLabel = '';
 
     switch (errorName) {
-      case 'NoSignalError':
-      case 'NotFoundError':
-      case 'UnknownError':
-      case 'InternalError':
-        messageTitle = 'sendGeneralErrorTitle';
-        messageBody = 'sendGeneralErrorBody';
-        buttonLabel = 'sendGeneralErrorBtnOk';
-        break;
+
       case 'NoSimCardError':
         messageTitle = 'sendNoSimCardTitle';
         messageBody = 'sendNoSimCardBody';
@@ -1500,6 +1514,15 @@ var ThreadUI = global.ThreadUI = {
         messageBody = 'sendAirplaneModeBody';
         buttonLabel = 'sendAirplaneModeBtnOk';
         break;
+      case 'NoSignalError':
+      case 'NotFoundError':
+      case 'UnknownError':
+      case 'InternalError':
+      case 'InvalidAddressError':
+      default:
+        messageTitle = 'sendGeneralErrorTitle';
+        messageBody = 'sendGeneralErrorBody';
+        buttonLabel = 'sendGeneralErrorBtnOk';
     }
 
     var dialog = new Dialog({

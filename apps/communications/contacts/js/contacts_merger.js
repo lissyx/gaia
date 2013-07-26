@@ -1,3 +1,5 @@
+'use strict';
+
 var contacts = window.contacts || {};
 
 contacts.Merger = (function() {
@@ -98,6 +100,7 @@ contacts.Merger = (function() {
       populateEmails(aDeviceContact.email, emailsHash, mergedContact.email);
 
       if (Array.isArray(aDeviceContact.tel)) {
+        aResult.matchedValues = aResult.matchedValues || [];
         aDeviceContact.tel.forEach(function(aTel) {
           var matchedValIdx = aResult.matchedValues.indexOf(aTel.value);
           var matchedValue = aTel.value;
@@ -130,9 +133,11 @@ contacts.Merger = (function() {
 
     }); // matchingResults
 
-    var name = [(Array.isArray(recGivenName) ? recGivenName[0] : '') +
-                          ' ' +
-                (Array.isArray(recFamilyName) ? recFamilyName[0] : '')];
+
+    mergedContact.name = [(Array.isArray(recGivenName) && recGivenName[0] ?
+                           recGivenName[0] : '') + ' ' +
+                (Array.isArray(recFamilyName) && recFamilyName[0] ?
+                            recFamilyName[0] : '')];
 
     var fields = ['familyName', 'givenName', 'name', 'org', 'email', 'tel',
                   'bday', 'adr', 'category', 'url', 'note', 'photo'];

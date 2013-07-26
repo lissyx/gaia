@@ -91,7 +91,8 @@ suite('dialer/call_log_db', function() {
 
   suite('Clean up', function() {
     test('delete_db', function(done) {
-      CallLogDBManager.deleteDb(function() {
+      CallLogDBManager.deleteDb(function(error) {
+        assert.isUndefined(error);
         assert.ok(true, 'Recents DB deleted');
         done();
       });
