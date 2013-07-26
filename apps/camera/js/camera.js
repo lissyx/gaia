@@ -1295,6 +1295,12 @@ var Camera = {
     // Default to cif profile
     } else if ('cif' in profiles) {
       profileName = 'cif';
+    // use high if found
+    } else if ('high' in profiles) {
+      profileName = 'high';
+    // use 480p if found
+    } else if ('480p' in profiles) {
+      profileName = '480p';
     // Fallback to first valid profile if none found
     } else {
       profileName = Object.keys(profiles)[0];
