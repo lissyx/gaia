@@ -344,9 +344,21 @@ navigator.mozL10n.ready(function bluetoothSettings() {
     // when DefaultAdapter is ready.
     function initial() {
       // Bind message handler for incoming pairing requests
-      navigator.mozSetMessageHandler('bluetooth-pairing-request',
-        function bt_gotPairingRequestMessage(message) {
-          onRequestPairing(message);
+      navigator.mozSetMessageHandler('bluetooth-requestconfirmation',
+        function bt_gotConfirmationMessage(message) {
+          onRequestPairing(message, 'confirmation');
+        }
+      );
+
+      navigator.mozSetMessageHandler('bluetooth-requestpincode',
+        function bt_gotPincodeMessage(message) {
+          onRequestPairing(message, 'pincode');
+        }
+      );
+
+      navigator.mozSetMessageHandler('bluetooth-requestpasskey',
+        function bt_gotPasskeyMessage(message) {
+          onRequestPairing(message, 'passkey');
         }
       );
 
@@ -687,7 +699,7 @@ navigator.mozL10n.ready(function bluetoothSettings() {
       small.dataset.l10nId = (connected) ? 'device-status-connected' : '';
     }
 
-    function onRequestPairing(evt) {
+    function onRequestPairing(evt, method) {
       var showPairView = function bt_showPairView() {
         var device = {
           address: evt.address,
@@ -700,7 +712,6 @@ navigator.mozL10n.ready(function bluetoothSettings() {
           pairingMode = 'passive';
         }
         var passkey = evt.passkey || null;
-        var method = evt.method;
         var protocol = window.location.protocol;
         var host = window.location.host;
         childWindow = window.open(protocol + '//' + host + '/onpair.html',
