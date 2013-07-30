@@ -517,6 +517,10 @@ var Camera = {
 
   toggleCamera: function camera_toggleCamera() {
     this._camera = 1 - this._camera;
+    // turn off flash light before switch to front camera
+    var flash = this._flashState[this._captureMode];
+    flash.currentMode = 0;
+    this.updateFlashUI();
     this.loadCameraPreview(this._camera, this.enableButtons.bind(this));
     this.setToggleCameraStyle();
   },
@@ -563,6 +567,7 @@ var Camera = {
   },
 
   startRecording: function camera_startRecording() {
+    this.toggleButton.classList.add('hidden');
     this._sizeLimitAlertActive = false;
     var captureButton = this.captureButton;
     var switchButton = this.switchButton;
@@ -655,6 +660,7 @@ var Camera = {
   },
 
   stopRecording: function camera_stopRecording() {
+    this.toggleButton.classList.remove('hidden');
     var self = this;
     this._cameraObj.stopRecording();
     this._recording = false;
