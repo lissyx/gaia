@@ -105,12 +105,6 @@ var KeypadManager = {
       document.getElementById('keypad-hidebar-hide-keypad-action');
   },
 
-  get dialerMessageText() {
-    delete this.dialerMessageText;
-    return this.dialerMessageText =
-      document.getElementById('dialer-message-text');
-  },
-
   init: function kh_init(oncall) {
 
     this._onCall = !!oncall;
@@ -229,26 +223,8 @@ var KeypadManager = {
       var self = this;
       CallLogDBManager.getGroupAtPosition(1, 'lastEntryDate', true, 'dialing',
         function hk_ggap_callback(result) {
-          if (result && (typeof result === 'object')) {
-            if (result.number) {
-              self.updatePhoneNumber(result.number);
-              return;
-            }
-          }
-          if (self.dialerMessageText) {
-            LazyL10n.get(function localized(_) {
-              self.dialerMessageText.textContent = _('NoPreviousOutgoingCalls');
-              self.dialerMessageText.hidden = false;
-              if (self.dialerMessageTimer) {
-                window.clearTimeout(self.dialerMessageTimer);
-              }
-              self.dialerMessageTimer = window.setTimeout(
-                function hk_removeDialerMessage() {
-                  self.dialerMessageText.hidden = true;
-                },
-                3000
-              );
-            });
+          if (result && (typeof result === 'object') && result.number) {
+            self.updatePhoneNumber(result.number);
           }
         }
       );
@@ -314,10 +290,6 @@ var KeypadManager = {
     // proccess.
     if (!key) {
       return;
-    }
-
-    if (this.dialerMessageText) {
-      this.dialerMessageText.hidden = true;
     }
 
     // Per certification requirement, we need to send an MMI request to
@@ -488,6 +460,7 @@ var KeypadManager = {
       var visibility;
       if (phoneNumber.length > 0) {
         visibility = 'visible';
+        this.callBarAddContact.classList.remove('disabled');
       } else {
         visibility = 'hidden';
         this.callBarAddContact.classList.add('disabled');

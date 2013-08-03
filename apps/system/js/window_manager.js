@@ -408,8 +408,6 @@ var WindowManager = (function() {
       };
     }
 
-    screenElement.classList.remove('fullscreen-app');
-
     // Inform keyboardmanager that we've finished the transition
     dispatchEvent(new CustomEvent('appclose'));
   }
@@ -658,6 +656,13 @@ var WindowManager = (function() {
 
     return runningApps[homescreen].frame;
   }
+
+  navigator.mozSettings.addObserver('homescreen.manifestURL', function(event) {
+    kill(homescreen);
+    retrieveHomescreen(function() {
+      setDisplayedApp(homescreen);
+    });
+  });
 
   function retrieveHomescreen(callback) {
     var lock = navigator.mozSettings.createLock();
