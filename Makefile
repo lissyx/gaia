@@ -504,6 +504,7 @@ $(1): $(XULRUNNER_BASE_DIRECTORY) pre-app | $(STAGE_DIR)
 endef
 
 include build/common.mk
+include build/devices.mk
 
 # Generate profile/
 $(PROFILE_FOLDER): preferences pre-app post-app test-agent-config offline contacts extensions $(XULRUNNER_BASE_DIRECTORY) .git/hooks/pre-commit create-default-data
