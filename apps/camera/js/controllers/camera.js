@@ -87,7 +87,37 @@ CameraController.prototype.bindEvents = function() {
   settings.hdr.on('change:selected', this.setHDR);
   settings.hdr.on('change:selected', this.onHDRChange);
 
+  window.addEventListener('keydown', this.handleKeyDown);
+  window.addEventListener('keyup', this.handleKeyUp);
+
   debug('events bound');
+};
+
+CameraController.prototype.handleKeyDown = function(ev) {
+  debug('ev:' + ev.key);
+  console.error('Received: ' + ev.type + ' for ' + ev.key);
+  var k = ev.key.toLowerCase();
+  switch (k) {
+    case 'camera':
+      this.capture();
+      break;
+
+    default:
+      debug('Unhandled keydown: ' + k);
+  }
+};
+
+CameraController.prototype.handleKeyUp = function(ev) {
+  debug('ev:' + ev.key);
+  console.error('Received: ' + ev.type + ' for ' + ev.key);
+  var k = ev.key.toLowerCase();
+  switch (k) {
+    case 'camera':
+      break;
+
+    default:
+      debug('Unhandled keyup: ' + k);
+  }
 };
 
 /**
