@@ -471,6 +471,8 @@
 
     this.chargingStatus.start();
 
+    window.addEventListener('holdcamera', this._activateCamera.bind(this));
+
     // Do not refresh clock here: L10n may not ready.
   };
 
